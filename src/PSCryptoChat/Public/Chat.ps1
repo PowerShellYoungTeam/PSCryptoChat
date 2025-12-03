@@ -121,7 +121,13 @@ function Start-CryptoChat {
                 try {
                     $data = $udp.Receive([ref]$remoteEp)
                     $text = [System.Text.Encoding]::UTF8.GetString($data)
-                    $msg = $text | ConvertFrom-Json -AsHashtable
+                    try {
+                        $msg = $text | ConvertFrom-Json -AsHashtable
+                    }
+                    catch {
+                        Write-Warning "Received malformed JSON during handshake: $text"
+                        continue
+                    }
 
                     if ($msg.type -eq "handshake") {
                         $peerKey = $msg.publicKey
