@@ -125,7 +125,7 @@ function Start-CryptoChat {
                         $msg = $text | ConvertFrom-Json -AsHashtable
                     }
                     catch {
-                        Write-Warning "Received malformed JSON during handshake: $text"
+                        Write-Warning "Received malformed JSON during handshake"
                         continue
                     }
 
@@ -198,7 +198,7 @@ function Start-CryptoChat {
                         $msg = $text | ConvertFrom-Json -AsHashtable
                     }
                     catch {
-                        Write-Warning "Received malformed JSON during handshake: $text"
+                        Write-Warning "Received malformed JSON during handshake"
                         continue
                     }
 
@@ -258,7 +258,7 @@ function Start-CryptoChat {
                     $msg = $text | ConvertFrom-Json -AsHashtable
                 }
                 catch {
-                    Write-Warning "Received malformed JSON message: $text"
+                    Write-Warning "Received malformed JSON message"
                     continue
                 }
 
