@@ -247,17 +247,22 @@ function Start-CryptoChat {
             # Check for incoming messages
             try {
                 $data = $udp.Receive([ref]$remoteEp)
-                $text = [System.Text.Encoding]::UTF8.GetString($data)
-                $msg = $text | ConvertFrom-Json -AsHashtable
+                try {
+                    $text = [System.Text.Encoding]::UTF8.GetString($data)
+                    $msg = $text | ConvertFrom-Json -AsHashtable
 
-                if ($msg.type -eq "message") {
-                    $decrypted = $session.Decrypt($msg.content)
-                    $time = Get-Date -Format "HH:mm:ss"
-                    Write-Host "`r[$time] Peer: $decrypted" -ForegroundColor Cyan
+                    if ($msg.type -eq "message") {
+                        $decrypted = $session.Decrypt($msg.content)
+                        $time = Get-Date -Format "HH:mm:ss"
+                        Write-Host "`r[$time] Peer: $decrypted" -ForegroundColor Cyan
+                    }
+                    elseif ($msg.type -eq "disconnect") {
+                        Write-Host "`r[!] Peer disconnected: $($msg.reason)" -ForegroundColor Yellow
+                        $running = $false
+                    }
                 }
-                elseif ($msg.type -eq "disconnect") {
-                    Write-Host "`r[!] Peer disconnected: $($msg.reason)" -ForegroundColor Yellow
-                    $running = $false
+                catch {
+                    Write-Warning "Received invalid or malformed message. Ignoring."
                 }
             }
             catch [System.Net.Sockets.SocketException] {
