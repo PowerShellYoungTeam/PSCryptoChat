@@ -10,6 +10,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Nothing yet
 
+## [0.1.1] - 2025-12-03
+
+### Added
+- **`Start-CryptoChat` cmdlet** - Interactive chat experience now available directly from the module
+  - Run as host: `Start-CryptoChat -Listen -Port 9000`
+  - Run as peer: `Start-CryptoChat -Connect -Peer 192.168.1.100 -Port 9000`
+  - No need to download `Chat.ps1` separately after installing from PSGallery
+
+### Fixed
+- GitHub Actions workflow now has correct permissions for creating releases automatically
+
 ## [0.1.0] - 2025-12-03
 
 ### Added
@@ -68,5 +79,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - NAT traversal not implemented - direct internet connections require port forwarding
 - See [Internet Connectivity Analysis](./docs/Internet-Connectivity-Analysis.md) for details
 
-[Unreleased]: https://github.com/PowerShellYoungTeam/PSCryptoChat/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/PowerShellYoungTeam/PSCryptoChat/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/PowerShellYoungTeam/PSCryptoChat/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/PowerShellYoungTeam/PSCryptoChat/releases/tag/v0.1.0
