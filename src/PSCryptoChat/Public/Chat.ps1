@@ -120,14 +120,8 @@ function Start-CryptoChat {
             while ($true) {
                 try {
                     $data = $udp.Receive([ref]$remoteEp)
-                    try {
-                        $text = [System.Text.Encoding]::UTF8.GetString($data)
-                        $msg = $text | ConvertFrom-Json -AsHashtable
-                    }
-                    catch {
-                        Write-Warning "Received malformed data during handshake"
-                        continue
-                    }
+                    $text = [System.Text.Encoding]::UTF8.GetString($data)
+                    $msg = $text | ConvertFrom-Json -AsHashtable
 
                     if ($msg.type -eq "handshake") {
                         $peerKey = $msg.publicKey
@@ -158,6 +152,9 @@ function Start-CryptoChat {
                 }
                 catch [System.Net.Sockets.SocketException] {
                     # Timeout, continue waiting
+                }
+                catch {
+                    Write-Warning "Received malformed data during handshake"
                 }
             }
         }
@@ -193,38 +190,17 @@ function Start-CryptoChat {
             for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
                 try {
                     $data = $udp.Receive([ref]$remoteEp)
-                    try {
-                        $text = [System.Text.Encoding]::UTF8.GetString($data)
-                        $msg = $text | ConvertFrom-Json -AsHashtable
-                    }
-                    catch {
-                        Write-Warning "Received malformed data during handshake"
-                        continue
-                    }
+                    $text = [System.Text.Encoding]::UTF8.GetString($data)
+                    $msg = $text | ConvertFrom-Json -AsHashtable
 
                     if ($msg.type -eq "handshake") {
-                        # Compute fingerprint of received public key
-                        $pubKeyBytes = [System.Text.Encoding]::UTF8.GetBytes($msg.publicKey)
-                        $sha256 = [System.Security.Cryptography.SHA256]::Create()
-                        $fingerprintBytes = $sha256.ComputeHash($pubKeyBytes)
-                        $fingerprint = ($fingerprintBytes | ForEach-Object { $_.ToString("x2") }) -join ""
-
-                        Write-Host "[*] Peer public key fingerprint (SHA256): $fingerprint" -ForegroundColor Yellow
-                        $confirmation = Read-Host "Do you trust this peer and wish to continue? (y/n)"
-                        if ($confirmation -eq "y" -or $confirmation -eq "Y") {
-                            $session.CompleteHandshake($msg.publicKey)
-                            # Update peer endpoint to where response came from
-                            $peerEndpoint = $remoteEp
-                            Write-Host "[+] Connected!" -ForegroundColor Green
-                            Write-Host "[*] Peer key: $($msg.publicKey.Substring(0, 40))..." -ForegroundColor DarkGray
-                            $connected = $true
-                            break
-                        }
-                        else {
-                            Write-Host "[!] Connection rejected by user." -ForegroundColor Red
-                            $connected = $false
-                            break
-                        }
+                        $session.CompleteHandshake($msg.publicKey)
+                        # Update peer endpoint to where response came from
+                        $peerEndpoint = $remoteEp
+                        Write-Host "[+] Connected!" -ForegroundColor Green
+                        Write-Host "[*] Peer key: $($msg.publicKey.Substring(0, 40))..." -ForegroundColor DarkGray
+                        $connected = $true
+                        break
                     }
                 }
                 catch [System.Net.Sockets.SocketException] {
@@ -238,6 +214,9 @@ function Start-CryptoChat {
                     else {
                         throw
                     }
+                }
+                catch {
+                    Write-Warning "Received malformed data during handshake"
                 }
             }
 
@@ -268,31 +247,24 @@ function Start-CryptoChat {
             # Check for incoming messages
             try {
                 $data = $udp.Receive([ref]$remoteEp)
-                try {
-                    $text = [System.Text.Encoding]::UTF8.GetString($data)
-                    $msg = $text | ConvertFrom-Json -AsHashtable
-                }
-                catch {
-                    Write-Warning "Received malformed data"
-                    continue
-                }
+                $text = [System.Text.Encoding]::UTF8.GetString($data)
+                $msg = $text | ConvertFrom-Json -AsHashtable
 
-                    if ($msg.type -eq "message") {
-                        $decrypted = $session.Decrypt($msg.content)
-                        $time = Get-Date -Format "HH:mm:ss"
-                        Write-Host "`r[$time] Peer: $decrypted" -ForegroundColor Cyan
-                    }
-                    elseif ($msg.type -eq "disconnect") {
-                        Write-Host "`r[!] Peer disconnected: $($msg.reason)" -ForegroundColor Yellow
-                        $running = $false
-                    }
+                if ($msg.type -eq "message") {
+                    $decrypted = $session.Decrypt($msg.content)
+                    $time = Get-Date -Format "HH:mm:ss"
+                    Write-Host "`r[$time] Peer: $decrypted" -ForegroundColor Cyan
                 }
-                catch {
-                    Write-Warning "Received invalid or malformed message. Ignoring."
+                elseif ($msg.type -eq "disconnect") {
+                    Write-Host "`r[!] Peer disconnected: $($msg.reason)" -ForegroundColor Yellow
+                    $running = $false
                 }
             }
             catch [System.Net.Sockets.SocketException] {
                 # Timeout - no message, continue
+            }
+            catch {
+                # Malformed message, ignore
             }
 
             # Check for user input
