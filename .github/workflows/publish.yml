@@ -1,0 +1,169 @@
+# Publish workflow for PSCryptoChat
+# Triggers on version tags (v*) and publishes to PowerShell Gallery
+
+name: Publish
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to publish (without v prefix)"
+        required: true
+        type: string
+
+env:
+  MODULE_NAME: PSCryptoChat
+  MODULE_PATH: ./src/PSCryptoChat
+
+jobs:
+  validate:
+    name: Validate Release
+    runs-on: windows-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Determine version
+        id: version
+        shell: pwsh
+        run: |
+          if ("${{ github.event.inputs.version }}") {
+            $version = "${{ github.event.inputs.version }}"
+          }
+          else {
+            $version = "${{ github.ref_name }}".TrimStart('v')
+          }
+          Write-Host "Version: $version"
+          echo "version=$version" >> $env:GITHUB_OUTPUT
+
+      - name: Validate manifest version matches tag
+        shell: pwsh
+        run: |
+          $manifest = Test-ModuleManifest -Path ${{ env.MODULE_PATH }}/PSCryptoChat.psd1
+          $manifestVersion = $manifest.Version.ToString()
+          $tagVersion = "${{ steps.version.outputs.version }}"
+
+          if ($manifestVersion -ne $tagVersion) {
+            Write-Error "Version mismatch: manifest=$manifestVersion, tag=$tagVersion"
+            exit 1
+          }
+
+          Write-Host "Version validated: $manifestVersion"
+
+      - name: Run tests
+        shell: pwsh
+        run: |
+          Install-Module -Name Pester -MinimumVersion 5.0.0 -Force -Scope CurrentUser
+
+          $config = New-PesterConfiguration
+          $config.Run.Path = './tests/PSCryptoChat.Tests.ps1'
+          $config.Output.Verbosity = 'Normal'
+
+          Invoke-Pester -Configuration $config
+
+  sign:
+    name: Sign Module
+    needs: validate
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Azure Trusted Signing integration
+      # Requires: AZURE_TENANT_ID, AZURE_CLIENT_ID, AZURE_CLIENT_SECRET secrets
+      - name: Azure Login
+        if: ${{ vars.ENABLE_CODE_SIGNING == 'true' }}
+        uses: azure/login@v2
+        with:
+          creds: |
+            {
+              "clientId": "${{ secrets.AZURE_CLIENT_ID }}",
+              "clientSecret": "${{ secrets.AZURE_CLIENT_SECRET }}",
+              "tenantId": "${{ secrets.AZURE_TENANT_ID }}",
+              "subscriptionId": "${{ secrets.AZURE_SUBSCRIPTION_ID }}"
+            }
+
+      - name: Sign PowerShell files
+        if: ${{ vars.ENABLE_CODE_SIGNING == 'true' }}
+        uses: azure/trusted-signing-action@v0.5.0
+        with:
+          azure-tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          azure-client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          azure-client-secret: ${{ secrets.AZURE_CLIENT_SECRET }}
+          endpoint: ${{ vars.TRUSTED_SIGNING_ENDPOINT }}
+          trusted-signing-account-name: ${{ vars.TRUSTED_SIGNING_ACCOUNT }}
+          certificate-profile-name: ${{ vars.TRUSTED_SIGNING_PROFILE }}
+          files-folder: ${{ env.MODULE_PATH }}
+          files-folder-filter: ps1,psm1,psd1
+          file-digest: SHA256
+          timestamp-rfc3161: http://timestamp.acs.microsoft.com
+          timestamp-digest: SHA256
+
+      - name: Upload signed module
+        uses: actions/upload-artifact@v4
+        with:
+          name: signed-module
+          path: ${{ env.MODULE_PATH }}
+          retention-days: 7
+
+  publish:
+    name: Publish to PowerShell Gallery
+    needs: [validate, sign]
+    runs-on: windows-latest
+    environment: production
+
+    steps:
+      - name: Download signed module
+        uses: actions/download-artifact@v4
+        with:
+          name: signed-module
+          path: ./publish/PSCryptoChat
+
+      - name: Verify module structure
+        shell: pwsh
+        run: |
+          Get-ChildItem -Path ./publish -Recurse | Format-Table FullName, Length
+
+      - name: Test module import
+        shell: pwsh
+        run: |
+          Import-Module ./publish/PSCryptoChat/PSCryptoChat.psd1 -Force
+          Get-Module PSCryptoChat | Format-List
+
+      - name: Publish to PowerShell Gallery
+        shell: pwsh
+        env:
+          PSGALLERY_API_KEY: ${{ secrets.PSGALLERY_API_KEY }}
+        run: |
+          $publishParams = @{
+            Path        = './publish/PSCryptoChat'
+            NuGetApiKey = $env:PSGALLERY_API_KEY
+            Repository  = 'PSGallery'
+            Verbose     = $true
+          }
+
+          Publish-Module @publishParams
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: PSCryptoChat v${{ needs.validate.outputs.version }}
+          body: |
+            ## PSCryptoChat v${{ needs.validate.outputs.version }}
+
+            ### Installation
+            ```powershell
+            Install-Module -Name PSCryptoChat -Scope CurrentUser
+            ```
+
+            ### Changes
+            See [CHANGELOG.md](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
+          draft: false
+          prerelease: ${{ contains(needs.validate.outputs.version, '-') }}

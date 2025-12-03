@@ -1,5 +1,23 @@
 # .NET P2P Libraries and NAT Traversal
 
+> **Implementation Status:** ⚠️ **PARTIALLY IMPLEMENTED**
+>
+> See `src/PSCryptoChat/PSCryptoChat.psm1` lines 475-580 for `UdpTransport` class.
+>
+> **Implemented:**
+> - Basic `UdpClient` wrapper for send/receive
+> - Connection to direct IP:port
+> - String and byte message support
+>
+> **NOT Implemented:**
+> - SIPSorcery integration
+> - STUN client
+> - UDP hole punching
+> - TURN relay fallback
+> - ICE candidate gathering
+>
+> **Current Limitation:** Requires direct IP connectivity (same LAN or port forwarding).
+
 ## Executive Summary
 
 This document evaluates NuGet packages for peer-to-peer networking, NAT traversal (STUN/TURN/ICE), and DHT implementations suitable for PSCryptoChat.

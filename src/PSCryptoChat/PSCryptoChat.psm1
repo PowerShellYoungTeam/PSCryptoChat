@@ -1,6 +1,13 @@
 #Requires -Version 7.0
 #Requires -PSEdition Core
 
+using namespace System.Security.Cryptography
+
+# PSScriptAnalyzer suppressions for intentional security patterns
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingConvertToSecureStringWithPlainText', '',
+    Justification = 'Required for SecretManagement vault storage - data is already sensitive and vault provides secure storage')]
+param()
+
 <#
 .SYNOPSIS
     PSCryptoChat - Encrypted, decentralized, optionally anonymous messaging
@@ -16,8 +23,6 @@
 .NOTES
     This is exploratory code - expect breaking changes.
 #>
-
-using namespace System.Security.Cryptography
 
 #region Classes - Must be in .psm1 for type export
 
@@ -389,7 +394,7 @@ class IdentityManager {
         }
 
         $secrets = Get-SecretInfo -Vault ([IdentityManager]::VaultName) -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -like "$([IdentityManager]::SecretPrefix)*" }
+        Where-Object { $_.Name -like "$([IdentityManager]::SecretPrefix)*" }
 
         return $secrets | ForEach-Object {
             $_.Name.Replace([IdentityManager]::SecretPrefix, '')
@@ -459,9 +464,9 @@ class ChatSession {
         # Store session ID for closure
         $sid = $this.SessionId
         $this.TimeoutTimer.add_Elapsed({
-            Write-Warning "Session $sid timed out"
-            [SessionManager]::CloseSession($sid)
-        })
+                Write-Warning "Session $sid timed out"
+                [SessionManager]::CloseSession($sid)
+            })
         $this.TimeoutTimer.Start()
     }
 
@@ -546,6 +551,7 @@ class UdpTransport {
     [string]$RemoteHost
     [int]$RemotePort
     [bool]$IsListening
+    [System.Net.IPEndPoint]$LastReceivedFrom
 
     hidden [System.Net.Sockets.UdpClient]$Client
     hidden [System.Threading.CancellationTokenSource]$CancelToken
@@ -569,10 +575,10 @@ class UdpTransport {
         $this.IsListening = $true
     }
 
-    [void]Connect([string]$Host, [int]$Port) {
-        $this.RemoteHost = $Host
+    [void]Connect([string]$HostName, [int]$Port) {
+        $this.RemoteHost = $HostName
         $this.RemotePort = $Port
-        $this.Client.Connect($Host, $Port)
+        $this.Client.Connect($HostName, $Port)
     }
 
     [void]SendBytes([byte[]]$Data) {
@@ -581,7 +587,12 @@ class UdpTransport {
         }
 
         if ($this.RemoteHost) {
+            # Connected mode - use the connected endpoint
             $null = $this.Client.Send($Data, $Data.Length)
+        }
+        elseif ($null -ne $this.LastReceivedFrom) {
+            # Host mode - reply to the last received endpoint
+            $null = $this.Client.Send($Data, $Data.Length, $this.LastReceivedFrom)
         }
         else {
             throw "Not connected to remote host"
@@ -602,7 +613,10 @@ class UdpTransport {
         $this.Client.Client.ReceiveTimeout = $TimeoutMs
 
         try {
-            return $this.Client.Receive([ref]$endpoint)
+            $data = $this.Client.Receive([ref]$endpoint)
+            # Store the sender's endpoint for reply (enables host to send back)
+            $this.LastReceivedFrom = $endpoint
+            return $data
         }
         catch [System.Net.Sockets.SocketException] {
             if ($_.Exception.SocketErrorCode -eq [System.Net.Sockets.SocketError]::TimedOut) {
@@ -625,8 +639,8 @@ class UdpTransport {
 
         # Get local IP (not 0.0.0.0)
         $localIp = [System.Net.Dns]::GetHostAddresses([System.Net.Dns]::GetHostName()) |
-            Where-Object { $_.AddressFamily -eq [System.Net.Sockets.AddressFamily]::InterNetwork } |
-            Select-Object -First 1
+        Where-Object { $_.AddressFamily -eq [System.Net.Sockets.AddressFamily]::InterNetwork } |
+        Select-Object -First 1
 
         if ($null -eq $localIp) {
             $localIp = [System.Net.IPAddress]::Loopback
@@ -728,8 +742,8 @@ class ManualDiscovery {
         }
     }
 
-    static [string]CreateConnectionString([string]$Host, [int]$Port, [string]$PublicKey) {
-        return "${Host}:${Port}:${PublicKey}"
+    static [string]CreateConnectionString([string]$HostName, [int]$Port, [string]$PublicKey) {
+        return "${HostName}:${Port}:${PublicKey}"
     }
 }
 

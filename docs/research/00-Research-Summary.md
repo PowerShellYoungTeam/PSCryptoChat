@@ -1,189 +1,223 @@
-# PSCryptoChat Research Summary & Recommendations
+# PSCryptoChat Research Summary & Implementation Status
+
+> **Updated:** December 2025 - Reflects v0.1.0 implementation
 
 ## Research Completed
 
 This research phase covered four key areas to refine the PSCryptoChat design:
 
-| Document | Focus Area | Status |
-|----------|------------|--------|
-| [01-ECDH-P256-Implementation.md](./01-ECDH-P256-Implementation.md) | P-256 ECDH in .NET/PowerShell | ✅ Complete |
-| [02-Hybrid-Identity-Architecture.md](./02-Hybrid-Identity-Architecture.md) | Pseudonymous + Anonymous modes | ✅ Complete |
-| [03-Bootstrap-Server-Design.md](./03-Bootstrap-Server-Design.md) | Portable bootstrap servers | ✅ Complete |
-| [04-P2P-Libraries-NAT-Traversal.md](./04-P2P-Libraries-NAT-Traversal.md) | .NET P2P libraries | ✅ Complete |
+| Document | Focus Area | Implementation Status |
+|----------|------------|----------------------|
+| [01-ECDH-P256-Implementation.md](./01-ECDH-P256-Implementation.md) | P-256 ECDH in .NET/PowerShell | ✅ **Implemented** |
+| [02-Hybrid-Identity-Architecture.md](./02-Hybrid-Identity-Architecture.md) | Pseudonymous + Anonymous modes | ✅ **Implemented** (simplified) |
+| [03-Bootstrap-Server-Design.md](./03-Bootstrap-Server-Design.md) | Portable bootstrap servers | 🔮 **Future** |
+| [04-P2P-Libraries-NAT-Traversal.md](./04-P2P-Libraries-NAT-Traversal.md) | .NET P2P libraries | ⚠️ **Partial** (UDP only, no STUN) |
 
 ---
 
-## Key Findings
+## Implementation Summary (v0.1.0)
 
-### 1. Cryptography (P-256 ECDH)
+### What's Built
 
-**Finding:** .NET provides excellent native support for P-256 ECDH via `ECDiffieHellmanCng`.
+| Component | Status | Notes |
+|-----------|--------|-------|
+| `CryptoProvider` class | ✅ Complete | P-256 ECDH, AES-256-GCM, HKDF-SHA256 |
+| `CryptoIdentity` class | ✅ Complete | Pseudonymous + Anonymous modes |
+| `ChatSession` class | ✅ Complete | Session state, encryption, timeout |
+| `SessionManager` class | ✅ Complete | Multi-session support |
+| `UdpTransport` class | ✅ Complete | Basic UDP send/receive |
+| `MessageProtocol` class | ✅ Complete | JSON protocol (handshake, message, ack, disconnect) |
+| `ManualDiscovery` class | ✅ Complete | Connection string parsing |
+| `PeerDiscovery` class | 🚧 Stub | mDNS placeholder only |
+| `IdentityManager` class | ✅ Complete | SecretManagement integration |
+| Safety numbers | ✅ Complete | Signal-style 60-digit verification |
+| Public cmdlets | ✅ Complete | 10+ exported functions |
 
-**Recommendations:**
-- ✅ Use `ECDiffieHellmanCng` for Windows, `ECDiffieHellman.Create()` for cross-platform
-- ✅ Use `ExportSubjectPublicKeyInfo()` for interoperable key exchange (X.509 format)
-- ✅ Use SHA-256 KDF for key derivation
-- ⚠️ Plan for post-quantum migration (Kyber-1024 hybrid) in architecture
+### What's NOT Built (Future)
 
-**Code Ready:**
-- Complete PowerShell wrappers for key generation, export, import
-- Alice-Bob key exchange example
-- AES encryption integration
-
-### 2. Identity Model
-
-**Finding:** Signal's X3DH provides strong security for pseudonymous mode; Session-like ephemeral keys work for anonymous mode.
-
-**Recommendations:**
-- ✅ Implement dual-mode architecture: Pseudonymous + Anonymous
-- ✅ Use X3DH key agreement for initial contact (pseudonymous)
-- ✅ Simple ECDH exchange for anonymous sessions
-- ✅ Implement key rotation: SPK weekly, OPK on consumption
-- ⚠️ Consider "Stealth Mode" for maximum anonymity
-
-**Architecture Ready:**
-- Key hierarchy design (Identity → Signed Prekey → One-Time Prekey → Session)
-- Safety number verification algorithm
-- Key storage patterns (persistent vs. memory-only)
-
-### 3. Bootstrap Servers
-
-**Finding:** Simple HTTP/UDP servers are sufficient; BitTorrent DHT patterns inform fallback design.
-
-**Recommendations:**
-- ✅ Start with PowerShell HTTP server (single file, portable)
-- ✅ Docker container for cloud deployment
-- ✅ Implement fallback chain: Bootstrap → Hardcoded Seeds → Local mDNS
-- ⚠️ Consider Azure Functions for serverless scale
-
-**Code Ready:**
-- HTTP Bootstrap server (PowerShell)
-- UDP Bootstrap server (BitTorrent-style)
-- Client bootstrap logic with fallback
-- Docker/compose configuration
-
-### 4. P2P Networking
-
-**Finding:** SIPSorcery provides the most complete NAT traversal solution; no direct UDP hole punching library exists.
-
-**Recommendations:**
-- ✅ Use **SIPSorcery** for STUN/TURN/ICE
-- ✅ Implement custom UDP hole punching (provided in docs)
-- ✅ Use public STUN servers (Google's stun.l.google.com)
-- ⚠️ Plan TURN fallback for symmetric NAT (self-hosted Coturn or Metered.ca)
-
-**Code Ready:**
-- STUN client implementation
-- UDP hole puncher class
-- ICE candidate gathering
-- P2P connection manager
+| Component | Status | Notes |
+|-----------|--------|-------|
+| Bootstrap servers | 🔮 Not started | Research docs still valid |
+| STUN/TURN NAT traversal | 🔮 Not started | SIPSorcery integration planned |
+| mDNS discovery | 🔮 Placeholder | Class exists but not functional |
+| Double Ratchet | 🔮 Not started | Single shared secret per session |
+| X3DH key agreement | 🔮 Not started | Simple ECDH used instead |
+| Prekey bundles | 🔮 Not started | No SPK/OPK infrastructure |
+| Group chat | 🔮 Not started | 1:1 only |
 
 ---
 
-## Recommended Implementation Order
+## Key Findings vs Implementation
 
-### Phase 1: Core Crypto (Week 1)
-```
-1. Implement ECDHKeyPair class
-2. Implement key serialization (JSON, PEM)
-3. Implement shared secret derivation
-4. Add AES-GCM encryption layer
-5. Write unit tests
-```
+### 1. Cryptography (P-256 ECDH) — ✅ IMPLEMENTED
 
-### Phase 2: Identity System (Week 2)
-```
-1. Implement IdentityKey, SignedPreKey, OneTimePreKey classes
-2. Implement X3DH key agreement
-3. Implement Double Ratchet (simplified)
-4. Add key storage (file-based, encrypted)
-5. Implement safety number verification
-```
+**Research Finding:** .NET provides excellent native support for P-256 ECDH via `ECDiffieHellmanCng`.
 
-### Phase 3: Bootstrap & Discovery (Week 3)
-```
-1. Deploy HTTP bootstrap server
-2. Implement bootstrap client
-3. Add mDNS local discovery
-4. Implement peer announcement
-5. Add fallback chain logic
+**Implementation:**
+- ✅ `ECDiffieHellmanCng` for Windows (primary target)
+- ✅ `ExportSubjectPublicKeyInfo()` for X.509 public key format
+- ✅ HKDF-SHA256 for key derivation (via `System.Security.Cryptography.HKDF`)
+- ✅ AES-256-GCM for authenticated encryption
+- ❌ Cross-platform support deferred (Linux/macOS)
+
+**Actual Classes:**
+```powershell
+[CryptoProvider]::NewKeyPair()           # Generate ECDH key pair
+[CryptoProvider]::ExportPublicKey()      # Export to Base64
+[CryptoProvider]::DeriveSharedSecret()   # ECDH + HKDF derivation
+[CryptoProvider]::EncryptMessage()       # AES-GCM encrypt
+[CryptoProvider]::DecryptMessage()       # AES-GCM decrypt
 ```
 
-### Phase 4: P2P Networking (Week 4)
-```
-1. Integrate SIPSorcery for STUN
-2. Implement UDP hole punching
-3. Build connection manager
-4. Add TURN fallback
-5. Implement reconnection logic
+### 2. Identity Model — ✅ IMPLEMENTED (Simplified)
+
+**Research Finding:** Signal's X3DH provides strong security; Session-like ephemeral keys for anonymous mode.
+
+**Implementation:**
+- ✅ Dual-mode: `Pseudonymous` and `Anonymous` via `[IdentityMode]` enum
+- ✅ Simple ECDH exchange (not X3DH)
+- ✅ Safety number verification (Signal-style 60-digit format)
+- ✅ SecretManagement integration for persistent identities
+- ❌ X3DH key agreement (not implemented)
+- ❌ Prekey rotation (not implemented)
+- ❌ Double Ratchet (not implemented)
+
+**Actual Classes:**
+```powershell
+[CryptoIdentity]::new([IdentityMode]::Anonymous)
+[CryptoIdentity]::new([IdentityMode]::Pseudonymous)
+$identity.GetSafetyNumber($peerPublicKey)
+$identity.Export() / Import via constructor
+[IdentityManager]::SaveIdentity() / LoadIdentity()
 ```
 
-### Phase 5: Integration (Week 5)
+### 3. Bootstrap Servers — 🔮 NOT IMPLEMENTED
+
+**Research Finding:** Simple HTTP/UDP servers sufficient; BitTorrent DHT patterns inform fallback.
+
+**Implementation:**
+- ❌ No bootstrap server code in module
+- ❌ No peer discovery beyond manual connection strings
+- 📋 Research docs remain valid for future implementation
+
+**Current Discovery:**
+```powershell
+# Manual only - exchange connection strings out-of-band
+Get-ConnectionString -SessionId $session.SessionId
+# Returns: "10.0.0.1:9000:MFkwEwYHKoZIzj0..."
 ```
-1. Connect crypto layer to transport
-2. Implement message protocol
-3. Add CLI interface
-4. End-to-end testing
-5. Documentation
+
+### 4. P2P Networking — ⚠️ PARTIAL
+
+**Research Finding:** SIPSorcery provides NAT traversal; custom UDP hole punching needed.
+
+**Implementation:**
+- ✅ Basic UDP transport (`UdpTransport` class)
+- ✅ Send/receive strings and bytes
+- ❌ STUN client (not implemented)
+- ❌ UDP hole punching (not implemented)
+- ❌ TURN relay fallback (not implemented)
+
+**Actual Classes:**
+```powershell
+$transport = [UdpTransport]::new(9000)
+$transport.Start()
+$transport.Connect($host, $port)
+$transport.SendString($message)
+$transport.ReceiveString(5000)
 ```
 
 ---
 
-## Technology Stack Summary
+## Technology Stack (Actual)
 
-| Component | Technology | Package/Source |
-|-----------|------------|----------------|
-| ECDH | ECDiffieHellmanCng | .NET BCL |
-| AES | Aes.Create() | .NET BCL |
-| HKDF | HKDF.DeriveKey() | .NET 5+ / Custom |
-| STUN/TURN | SIPSorcery | NuGet |
-| UDP | System.Net.Sockets.UdpClient | .NET BCL |
-| HTTP Server | System.Net.HttpListener | .NET BCL |
-| JSON | System.Text.Json | .NET BCL |
-| Bootstrap | Custom PowerShell | Provided |
-
----
-
-## Risk Mitigation
-
-| Risk | Mitigation |
-|------|------------|
-| Symmetric NAT blocking P2P | TURN relay fallback |
-| Bootstrap server unavailable | Hardcoded seed list + mDNS |
-| Key compromise | Forward secrecy via Double Ratchet |
-| Post-quantum threat | Hybrid KEM architecture prepared |
-| Message interception | End-to-end encryption |
+| Component | Technology | Status |
+|-----------|------------|--------|
+| ECDH | `ECDiffieHellmanCng` | ✅ Used |
+| AES | `AesGcm` (.NET 5+) | ✅ Used |
+| HKDF | `HKDF.DeriveKey()` | ✅ Used |
+| UDP | `System.Net.Sockets.UdpClient` | ✅ Used |
+| JSON | `ConvertTo-Json` / `ConvertFrom-Json` | ✅ Used |
+| Key Storage | `Microsoft.PowerShell.SecretManagement` | ✅ Optional |
+| STUN/TURN | SIPSorcery | ❌ Not integrated |
+| mDNS | - | ❌ Not implemented |
+| Bootstrap | - | ❌ Not implemented |
 
 ---
 
-## Next Steps
+## Current Limitations
 
-1. **Review this research** and validate decisions
-2. **Create project structure** based on Phase 1
-3. **Implement core crypto module** with tests
-4. **Set up development bootstrap server** locally
+| Limitation | Impact | Workaround |
+|------------|--------|------------|
+| Windows-only | Can't run on Linux/macOS | Use Windows or WSL |
+| No NAT traversal | Direct IP required | Port forwarding or same LAN |
+| Manual discovery | No automatic peer finding | Share connection strings manually |
+| No forward secrecy | Single session key | New session = new keys |
+| No message persistence | Messages not stored | Real-time only |
 
 ---
 
-## Files Created
+## Files Structure (Current)
 
 ```
 PSCryptoChat/
-└── docs/
-    └── research/
-        ├── 01-ECDH-P256-Implementation.md    (P-256 ECDH code examples)
-        ├── 02-Hybrid-Identity-Architecture.md (Identity system design)
-        ├── 03-Bootstrap-Server-Design.md      (Bootstrap patterns & code)
-        ├── 04-P2P-Libraries-NAT-Traversal.md  (NAT traversal options)
-        └── 00-Research-Summary.md             (This file)
+├── src/PSCryptoChat/
+│   ├── PSCryptoChat.psd1          # Module manifest
+│   ├── PSCryptoChat.psm1          # All classes + module logic
+│   └── Public/
+│       ├── Identity.ps1           # New-CryptoIdentity, Get-CryptoIdentity
+│       ├── Session.ps1            # Start-ChatSession, Stop-ChatSession
+│       ├── Messaging.ps1          # Send-ChatMessage, Receive-ChatMessage
+│       └── Discovery.ps1          # Get-ConnectionString, Find-ChatPeers
+├── tests/
+│   └── PSCryptoChat.Tests.ps1     # 85 Pester tests (81 pass, 4 skip)
+├── examples/
+│   ├── Basic-Chat-Host.ps1
+│   ├── Basic-Chat-Peer.ps1
+│   ├── Anonymous-Session.ps1
+│   └── Verify-SafetyNumbers.ps1
+├── docs/
+│   ├── Connection-Flow.md         # Mermaid sequence diagrams
+│   ├── Azure-Trusted-Signing-Setup.md
+│   └── research/                  # This folder
+└── Chat.ps1                       # Interactive CLI demo
 ```
 
 ---
 
-## Questions for Consideration
+## Future Roadmap
 
-1. **Anonymous mode priority:** Should anonymous mode be MVP or Phase 2?
-2. **TURN server:** Self-host Coturn or use Metered.ca free tier?
-3. **Key backup:** Should identity keys be exportable for backup?
-4. **Group chat:** Prioritize 1:1 first, or design for groups from start?
-5. **Mobile support:** Any plans for cross-platform beyond Windows?
+### Phase 1: v0.2.0 - NAT Traversal
+- [ ] Integrate SIPSorcery for STUN
+- [ ] Implement UDP hole punching
+- [ ] Add public STUN server list
+- [ ] TURN fallback (optional)
+
+### Phase 2: v0.3.0 - Discovery
+- [ ] mDNS local peer discovery
+- [ ] Bootstrap server (self-hostable)
+- [ ] Peer exchange protocol
+
+### Phase 3: v0.4.0 - Enhanced Security
+- [ ] Double Ratchet protocol
+- [ ] X3DH key agreement
+- [ ] Prekey rotation
+- [ ] Cross-platform support (Linux/macOS)
+
+### Phase 4: v1.0.0 - Production Ready
+- [ ] Group chat support
+- [ ] Message persistence (optional)
+- [ ] GUI application
+- [ ] Mobile considerations
+
+---
+
+## Questions Answered
+
+| Question | Decision |
+|----------|----------|
+| Anonymous mode priority? | ✅ MVP includes both modes |
+| TURN server? | 🔮 Deferred - not in v0.1.0 |
+| Key backup? | ✅ Yes via SecretManagement |
+| Group chat? | 🔮 1:1 only for now |
+| Cross-platform? | 🔮 Windows-only for v0.1.0 |

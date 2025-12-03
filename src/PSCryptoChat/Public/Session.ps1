@@ -108,8 +108,10 @@ function Start-ChatSession {
         Write-Host "Found $($peers.Count) peer(s):" -ForegroundColor Green
         $peers | ForEach-Object { Write-Host "  - $($_.Name) at $($_.Host):$($_.Port)" }
 
-        # Connect to first peer (TODO: selection UI)
+        # Connect to first discovered peer
+        # For multiple peers, users can use Find-ChatPeer and Start-ChatSession -Peer with specific connection string
         $peerInfo = $peers[0]
+        Write-Host "Connecting to $($peerInfo.Name)..." -ForegroundColor Cyan
         $transport.Connect($peerInfo.Host, $peerInfo.Port)
         $session.CompleteHandshake($peerInfo.PublicKey)
     }
