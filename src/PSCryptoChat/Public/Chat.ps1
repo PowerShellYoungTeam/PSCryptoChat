@@ -197,13 +197,28 @@ function Start-CryptoChat {
                     $msg = $text | ConvertFrom-Json -AsHashtable
 
                     if ($msg.type -eq "handshake") {
-                        $session.CompleteHandshake($msg.publicKey)
-                        # Update peer endpoint to where response came from
-                        $peerEndpoint = $remoteEp
-                        Write-Host "[+] Connected!" -ForegroundColor Green
-                        Write-Host "[*] Peer key: $($msg.publicKey.Substring(0, 40))..." -ForegroundColor DarkGray
-                        $connected = $true
-                        break
+                        # Compute fingerprint of received public key
+                        $pubKeyBytes = [System.Text.Encoding]::UTF8.GetBytes($msg.publicKey)
+                        $sha256 = [System.Security.Cryptography.SHA256]::Create()
+                        $fingerprintBytes = $sha256.ComputeHash($pubKeyBytes)
+                        $fingerprint = ($fingerprintBytes | ForEach-Object { $_.ToString("x2") }) -join ""
+
+                        Write-Host "[*] Peer public key fingerprint (SHA256): $fingerprint" -ForegroundColor Yellow
+                        $confirmation = Read-Host "Do you trust this peer and wish to continue? (y/n)"
+                        if ($confirmation -eq "y" -or $confirmation -eq "Y") {
+                            $session.CompleteHandshake($msg.publicKey)
+                            # Update peer endpoint to where response came from
+                            $peerEndpoint = $remoteEp
+                            Write-Host "[+] Connected!" -ForegroundColor Green
+                            Write-Host "[*] Peer key: $($msg.publicKey.Substring(0, 40))..." -ForegroundColor DarkGray
+                            $connected = $true
+                            break
+                        }
+                        else {
+                            Write-Host "[!] Connection rejected by user." -ForegroundColor Red
+                            $connected = $false
+                            break
+                        }
                     }
                 }
                 catch [System.Net.Sockets.SocketException] {
