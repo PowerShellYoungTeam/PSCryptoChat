@@ -12,7 +12,7 @@ using module .\src\PSCryptoChat\PSCryptoChat.psm1
 
 .EXAMPLE
     .\Chat.ps1 -Listen -Port 9000
-    
+
 .EXAMPLE
     .\Chat.ps1 -Connect -Peer 192.168.1.100 -Port 9000
 #>
@@ -37,7 +37,7 @@ $ErrorActionPreference = 'Stop'
 Write-Host ""
 Write-Host "  ╔═══════════════════════════════════════╗" -ForegroundColor Cyan
 Write-Host "  ║       PSCryptoChat v0.1.0             ║" -ForegroundColor Cyan
-Write-Host "  ║   End-to-End Encrypted P2P Chat      ║" -ForegroundColor Cyan  
+Write-Host "  ║   End-to-End Encrypted P2P Chat      ║" -ForegroundColor Cyan
 Write-Host "  ╚═══════════════════════════════════════╝" -ForegroundColor Cyan
 Write-Host ""
 
@@ -64,8 +64,8 @@ $localEndpoint = [System.Net.IPEndPoint]$udp.Client.LocalEndPoint
 $actualPort = $localEndpoint.Port
 
 # Get local IP
-$localIp = ([System.Net.Dns]::GetHostAddresses([System.Net.Dns]::GetHostName()) | 
-    Where-Object { $_.AddressFamily -eq 'InterNetwork' } | 
+$localIp = ([System.Net.Dns]::GetHostAddresses([System.Net.Dns]::GetHostName()) |
+    Where-Object { $_.AddressFamily -eq 'InterNetwork' } |
     Select-Object -First 1).IPAddressToString
 
 Write-Host "[*] Local: ${localIp}:${actualPort}" -ForegroundColor DarkGray
@@ -83,25 +83,25 @@ try {
         # Wait for handshake
         $udp.Client.ReceiveTimeout = 0  # Block indefinitely
         $remoteEp = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Any, 0)
-        
+
         while ($true) {
             try {
                 $data = $udp.Receive([ref]$remoteEp)
                 $text = [System.Text.Encoding]::UTF8.GetString($data)
                 $msg = $text | ConvertFrom-Json -AsHashtable
-                
+
                 if ($msg.type -eq "handshake") {
                     $peerKey = $msg.publicKey
-                    
+
                     Write-Host "[+] Peer connected from $($remoteEp.Address):$($remoteEp.Port)!" -ForegroundColor Green
                     Write-Host "[*] Peer key: $($peerKey.Substring(0, 40))..." -ForegroundColor DarkGray
-                    
+
                     # Store peer endpoint for replies
                     $peerEndpoint = $remoteEp
-                    
+
                     # Complete handshake
                     $session.CompleteHandshake($peerKey)
-                    
+
                     # Send our handshake back to the peer
                     $response = @{
                         type      = "handshake"
@@ -112,7 +112,7 @@ try {
                     } | ConvertTo-Json -Compress
                     $responseBytes = [System.Text.Encoding]::UTF8.GetBytes($response)
                     $null = $udp.Send($responseBytes, $responseBytes.Length, $peerEndpoint)
-                    
+
                     Write-Host "[*] Handshake response sent" -ForegroundColor DarkGray
                     break
                 }
@@ -125,13 +125,13 @@ try {
     else {
         # === CLIENT MODE ===
         Write-Host "[+] Connecting to ${Peer}:${Port}..." -ForegroundColor Green
-        
+
         # Resolve peer address
-        $peerIp = [System.Net.Dns]::GetHostAddresses($Peer) | 
-            Where-Object { $_.AddressFamily -eq 'InterNetwork' } | 
-            Select-Object -First 1
+        $peerIp = [System.Net.Dns]::GetHostAddresses($Peer) |
+        Where-Object { $_.AddressFamily -eq 'InterNetwork' } |
+        Select-Object -First 1
         $peerEndpoint = [System.Net.IPEndPoint]::new($peerIp, $Port)
-        
+
         # Send handshake
         $handshake = @{
             type      = "handshake"
@@ -142,21 +142,21 @@ try {
         } | ConvertTo-Json -Compress
         $handshakeBytes = [System.Text.Encoding]::UTF8.GetBytes($handshake)
         $null = $udp.Send($handshakeBytes, $handshakeBytes.Length, $peerEndpoint)
-        
+
         Write-Host "[*] Handshake sent, waiting for response..." -ForegroundColor DarkGray
-        
+
         # Wait for response
         $udp.Client.ReceiveTimeout = 2000
         $remoteEp = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Any, 0)
         $maxAttempts = 10
         $connected = $false
-        
+
         for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
             try {
                 $data = $udp.Receive([ref]$remoteEp)
                 $text = [System.Text.Encoding]::UTF8.GetString($data)
                 $msg = $text | ConvertFrom-Json -AsHashtable
-                
+
                 if ($msg.type -eq "handshake") {
                     $session.CompleteHandshake($msg.publicKey)
                     # Update peer endpoint to where response came from
@@ -180,7 +180,7 @@ try {
                 }
             }
         }
-        
+
         if (-not $connected) {
             Write-Host "[!] No response from host after $maxAttempts attempts" -ForegroundColor Red
             exit 1
@@ -203,14 +203,14 @@ try {
     $udp.Client.ReceiveTimeout = 100
     $remoteEp = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Any, 0)
     $running = $true
-    
+
     while ($running) {
         # Check for incoming messages
         try {
             $data = $udp.Receive([ref]$remoteEp)
             $text = [System.Text.Encoding]::UTF8.GetString($data)
             $msg = $text | ConvertFrom-Json -AsHashtable
-            
+
             if ($msg.type -eq "message") {
                 $decrypted = $session.Decrypt($msg.content)
                 $time = Get-Date -Format "HH:mm:ss"
@@ -229,7 +229,7 @@ try {
         # Check for user input
         if ([Console]::KeyAvailable) {
             $userInput = Read-Host "You"
-            
+
             if ($userInput -eq 'quit') {
                 $disconnect = @{
                     type      = "disconnect"
