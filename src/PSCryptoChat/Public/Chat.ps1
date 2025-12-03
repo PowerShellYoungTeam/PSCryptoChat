@@ -120,12 +120,12 @@ function Start-CryptoChat {
             while ($true) {
                 try {
                     $data = $udp.Receive([ref]$remoteEp)
-                    $text = [System.Text.Encoding]::UTF8.GetString($data)
                     try {
+                        $text = [System.Text.Encoding]::UTF8.GetString($data)
                         $msg = $text | ConvertFrom-Json -AsHashtable
                     }
                     catch {
-                        Write-Warning "Received malformed JSON during handshake: $text"
+                        Write-Warning "Received malformed data during handshake"
                         continue
                     }
 
@@ -193,8 +193,14 @@ function Start-CryptoChat {
             for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
                 try {
                     $data = $udp.Receive([ref]$remoteEp)
-                    $text = [System.Text.Encoding]::UTF8.GetString($data)
-                    $msg = $text | ConvertFrom-Json -AsHashtable
+                    try {
+                        $text = [System.Text.Encoding]::UTF8.GetString($data)
+                        $msg = $text | ConvertFrom-Json -AsHashtable
+                    }
+                    catch {
+                        Write-Warning "Received malformed data during handshake"
+                        continue
+                    }
 
                     if ($msg.type -eq "handshake") {
                         # Compute fingerprint of received public key
@@ -265,6 +271,11 @@ function Start-CryptoChat {
                 try {
                     $text = [System.Text.Encoding]::UTF8.GetString($data)
                     $msg = $text | ConvertFrom-Json -AsHashtable
+                }
+                catch {
+                    Write-Warning "Received malformed data"
+                    continue
+                }
 
                     if ($msg.type -eq "message") {
                         $decrypted = $session.Decrypt($msg.content)
