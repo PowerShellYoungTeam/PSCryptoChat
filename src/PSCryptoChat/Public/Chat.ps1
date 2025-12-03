@@ -135,10 +135,24 @@ function Start-CryptoChat {
                         Write-Host "[+] Peer connected from $($remoteEp.Address):$($remoteEp.Port)!" -ForegroundColor Green
                         Write-Host "[*] Peer key: $($peerKey.Substring(0, 40))..." -ForegroundColor DarkGray
 
+                        # Compute fingerprint of received public key for verification
+                        $pubKeyBytes = [System.Text.Encoding]::UTF8.GetBytes($peerKey)
+                        $sha256 = [System.Security.Cryptography.SHA256]::Create()
+                        $fingerprintBytes = $sha256.ComputeHash($pubKeyBytes)
+                        $fingerprint = ($fingerprintBytes | ForEach-Object { $_.ToString("x2") }) -join ""
+
+                        Write-Host "[*] Peer public key fingerprint (SHA256): $fingerprint" -ForegroundColor Yellow
+                        $confirmation = Read-Host "Do you trust this peer and wish to continue? (y/n)"
+                        
+                        if ($confirmation -ne "y" -and $confirmation -ne "Y") {
+                            Write-Host "[!] Connection rejected by user." -ForegroundColor Red
+                            continue
+                        }
+
                         # Store peer endpoint for replies
                         $peerEndpoint = $remoteEp
 
-                        # Complete handshake
+                        # Complete handshake only after user confirmation
                         $session.CompleteHandshake($peerKey)
 
                         # Send our handshake back to the peer
@@ -277,18 +291,14 @@ function Start-CryptoChat {
                     continue
                 }
 
-                    if ($msg.type -eq "message") {
-                        $decrypted = $session.Decrypt($msg.content)
-                        $time = Get-Date -Format "HH:mm:ss"
-                        Write-Host "`r[$time] Peer: $decrypted" -ForegroundColor Cyan
-                    }
-                    elseif ($msg.type -eq "disconnect") {
-                        Write-Host "`r[!] Peer disconnected: $($msg.reason)" -ForegroundColor Yellow
-                        $running = $false
-                    }
+                if ($msg.type -eq "message") {
+                    $decrypted = $session.Decrypt($msg.content)
+                    $time = Get-Date -Format "HH:mm:ss"
+                    Write-Host "`r[$time] Peer: $decrypted" -ForegroundColor Cyan
                 }
-                catch {
-                    Write-Warning "Received invalid or malformed message. Ignoring."
+                elseif ($msg.type -eq "disconnect") {
+                    Write-Host "`r[!] Peer disconnected: $($msg.reason)" -ForegroundColor Yellow
+                    $running = $false
                 }
             }
             catch [System.Net.Sockets.SocketException] {
