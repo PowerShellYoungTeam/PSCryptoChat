@@ -138,36 +138,42 @@ function Start-CryptoChat {
                         # Compute fingerprint of received public key for verification
                         $pubKeyBytes = [System.Text.Encoding]::UTF8.GetBytes($peerKey)
                         $sha256 = [System.Security.Cryptography.SHA256]::Create()
-                        $fingerprintBytes = $sha256.ComputeHash($pubKeyBytes)
-                        $fingerprint = ($fingerprintBytes | ForEach-Object { $_.ToString("x2") }) -join ""
+                        try {
+                            $fingerprintBytes = $sha256.ComputeHash($pubKeyBytes)
+                            $fingerprint = ($fingerprintBytes | ForEach-Object { $_.ToString("x2") }) -join ""
+                        }
+                        finally {
+                            $sha256.Dispose()
+                        }
 
                         Write-Host "[*] Peer public key fingerprint (SHA256): $fingerprint" -ForegroundColor Yellow
                         $confirmation = Read-Host "Do you trust this peer and wish to continue? (y/n)"
                         
-                        if ($confirmation -ne "y" -and $confirmation -ne "Y") {
+                        if ($confirmation -eq "y" -or $confirmation -eq "Y") {
+                            # Store peer endpoint for replies
+                            $peerEndpoint = $remoteEp
+
+                            # Complete handshake only after user confirmation
+                            $session.CompleteHandshake($peerKey)
+
+                            # Send our handshake back to the peer
+                            $response = @{
+                                type      = "handshake"
+                                version   = "1.0"
+                                publicKey = $identity.PublicKey
+                                sessionId = $session.SessionId
+                                timestamp = [DateTime]::UtcNow.ToString('o')
+                            } | ConvertTo-Json -Compress
+                            $responseBytes = [System.Text.Encoding]::UTF8.GetBytes($response)
+                            $null = $udp.Send($responseBytes, $responseBytes.Length, $peerEndpoint)
+
+                            Write-Host "[*] Handshake response sent" -ForegroundColor DarkGray
+                            break
+                        }
+                        else {
                             Write-Host "[!] Connection rejected by user." -ForegroundColor Red
                             continue
                         }
-
-                        # Store peer endpoint for replies
-                        $peerEndpoint = $remoteEp
-
-                        # Complete handshake only after user confirmation
-                        $session.CompleteHandshake($peerKey)
-
-                        # Send our handshake back to the peer
-                        $response = @{
-                            type      = "handshake"
-                            version   = "1.0"
-                            publicKey = $identity.PublicKey
-                            sessionId = $session.SessionId
-                            timestamp = [DateTime]::UtcNow.ToString('o')
-                        } | ConvertTo-Json -Compress
-                        $responseBytes = [System.Text.Encoding]::UTF8.GetBytes($response)
-                        $null = $udp.Send($responseBytes, $responseBytes.Length, $peerEndpoint)
-
-                        Write-Host "[*] Handshake response sent" -ForegroundColor DarkGray
-                        break
                     }
                 }
                 catch [System.Net.Sockets.SocketException] {
