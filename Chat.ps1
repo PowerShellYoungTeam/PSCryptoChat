@@ -215,7 +215,6 @@ try {
                 $decrypted = $session.Decrypt($msg.content)
                 $time = Get-Date -Format "HH:mm:ss"
                 Write-Host "`r[$time] Peer: $decrypted" -ForegroundColor Cyan
-                Write-Host -NoNewline "You: "
             }
             elseif ($msg.type -eq "disconnect") {
                 Write-Host "`r[!] Peer disconnected: $($msg.reason)" -ForegroundColor Yellow

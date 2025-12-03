@@ -1,4 +1,4 @@
-#Requires -Version 7.0
+ires -Version 7.0
 <#
 .SYNOPSIS
     Pester tests for PSCryptoChat crypto functions
