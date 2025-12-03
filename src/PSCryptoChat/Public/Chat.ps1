@@ -120,12 +120,12 @@ function Start-CryptoChat {
             while ($true) {
                 try {
                     $data = $udp.Receive([ref]$remoteEp)
-                    $text = [System.Text.Encoding]::UTF8.GetString($data)
                     try {
+                        $text = [System.Text.Encoding]::UTF8.GetString($data)
                         $msg = $text | ConvertFrom-Json -AsHashtable
                     }
                     catch {
-                        Write-Warning "Received malformed JSON during handshake"
+                        Write-Warning "Received malformed data during handshake"
                         continue
                     }
 
@@ -193,12 +193,12 @@ function Start-CryptoChat {
             for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
                 try {
                     $data = $udp.Receive([ref]$remoteEp)
-                    $text = [System.Text.Encoding]::UTF8.GetString($data)
                     try {
+                        $text = [System.Text.Encoding]::UTF8.GetString($data)
                         $msg = $text | ConvertFrom-Json -AsHashtable
                     }
                     catch {
-                        Write-Warning "Received malformed JSON during handshake"
+                        Write-Warning "Received malformed data during handshake"
                         continue
                     }
 
@@ -253,12 +253,12 @@ function Start-CryptoChat {
             # Check for incoming messages
             try {
                 $data = $udp.Receive([ref]$remoteEp)
-                $text = [System.Text.Encoding]::UTF8.GetString($data)
                 try {
+                    $text = [System.Text.Encoding]::UTF8.GetString($data)
                     $msg = $text | ConvertFrom-Json -AsHashtable
                 }
                 catch {
-                    Write-Warning "Received malformed JSON message"
+                    Write-Warning "Received malformed data"
                     continue
                 }
 
