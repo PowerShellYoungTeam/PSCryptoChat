@@ -1,6 +1,13 @@
 #Requires -Version 7.0
 #Requires -PSEdition Core
 
+using namespace System.Security.Cryptography
+
+# PSScriptAnalyzer suppressions for intentional security patterns
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingConvertToSecureStringWithPlainText', '',
+    Justification = 'Required for SecretManagement vault storage - data is already sensitive and vault provides secure storage')]
+param()
+
 <#
 .SYNOPSIS
     PSCryptoChat - Encrypted, decentralized, optionally anonymous messaging
@@ -16,8 +23,6 @@
 .NOTES
     This is exploratory code - expect breaking changes.
 #>
-
-using namespace System.Security.Cryptography
 
 #region Classes - Must be in .psm1 for type export
 
@@ -364,10 +369,6 @@ class IdentityManager {
             Mode    = $Identity.Mode.ToString()
         } | ConvertTo-Json -Compress
 
-        # PSScriptAnalyzer suppression: This is intentional - we're storing identity data
-        # in SecretManagement vault which requires SecureString input. The data is already
-        # sensitive (private key) and the vault provides secure storage.
-        # [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingConvertToSecureStringWithPlainText', '')]
         $secureData = ConvertTo-SecureString -String $secretData -AsPlainText -Force
         Set-Secret -Name $secretName -SecureStringSecret $secureData -Vault ([IdentityManager]::VaultName) -ErrorAction Stop
     }
@@ -574,10 +575,10 @@ class UdpTransport {
         $this.IsListening = $true
     }
 
-    [void]Connect([string]$Host, [int]$Port) {
-        $this.RemoteHost = $Host
+    [void]Connect([string]$HostName, [int]$Port) {
+        $this.RemoteHost = $HostName
         $this.RemotePort = $Port
-        $this.Client.Connect($Host, $Port)
+        $this.Client.Connect($HostName, $Port)
     }
 
     [void]SendBytes([byte[]]$Data) {
@@ -741,8 +742,8 @@ class ManualDiscovery {
         }
     }
 
-    static [string]CreateConnectionString([string]$Host, [int]$Port, [string]$PublicKey) {
-        return "${Host}:${Port}:${PublicKey}"
+    static [string]CreateConnectionString([string]$HostName, [int]$Port, [string]$PublicKey) {
+        return "${HostName}:${Port}:${PublicKey}"
     }
 }
 
