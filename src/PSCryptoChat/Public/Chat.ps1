@@ -49,7 +49,7 @@ function Start-CryptoChat {
         [switch]$Connect,
 
         [Parameter(ParameterSetName = 'Connect')]
-        [Alias('Host', 'HostName')]
+        [Alias('Server', 'HostName')]
         [string]$Peer = "localhost",
 
         [Parameter()]
