@@ -1,5 +1,10 @@
 # P-256 ECDH Implementation in PowerShell/.NET
 
+> **Implementation Status:** ✅ **IMPLEMENTED** in `CryptoProvider` class
+>
+> See `src/PSCryptoChat/PSCryptoChat.psm1` lines 35-205 for actual implementation.
+> Key differences from research: Uses `AesGcm` directly (not `Aes.Create()`), HKDF via .NET 5+ built-in.
+
 ## Executive Summary
 
 .NET provides native, production-ready support for P-256 ECDH via the `ECDiffieHellmanCng` class on Windows. This document provides complete code examples for key generation, export/import, and shared secret derivation.

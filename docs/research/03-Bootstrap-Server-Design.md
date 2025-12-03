@@ -1,5 +1,20 @@
 # Portable Bootstrap Server Design
 
+> **Implementation Status:** 🔮 **NOT IMPLEMENTED**
+>
+> This research document remains relevant for future implementation.
+> Current v0.1.0 uses manual connection string exchange only.
+>
+> **Current Discovery:**
+> ```powershell
+> # Host shares connection string out-of-band (email, chat, QR code)
+> $connStr = Get-ConnectionString -SessionId $session.SessionId
+> # "10.0.0.1:9000:MFkwEwYHKoZIzj0..."
+>
+> # Peer connects using connection string
+> Start-ChatSession -Connect $connStr
+> ```
+
 ## Executive Summary
 
 This document outlines design options for portable, disposable bootstrap servers that enable peer discovery without centralized infrastructure. The design draws from BitTorrent DHT, Tor directory authorities, and serverless patterns.

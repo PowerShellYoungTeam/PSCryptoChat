@@ -364,6 +364,10 @@ class IdentityManager {
             Mode    = $Identity.Mode.ToString()
         } | ConvertTo-Json -Compress
 
+        # PSScriptAnalyzer suppression: This is intentional - we're storing identity data
+        # in SecretManagement vault which requires SecureString input. The data is already
+        # sensitive (private key) and the vault provides secure storage.
+        # [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSAvoidUsingConvertToSecureStringWithPlainText', '')]
         $secureData = ConvertTo-SecureString -String $secretData -AsPlainText -Force
         Set-Secret -Name $secretName -SecureStringSecret $secureData -Vault ([IdentityManager]::VaultName) -ErrorAction Stop
     }
@@ -389,7 +393,7 @@ class IdentityManager {
         }
 
         $secrets = Get-SecretInfo -Vault ([IdentityManager]::VaultName) -ErrorAction SilentlyContinue |
-            Where-Object { $_.Name -like "$([IdentityManager]::SecretPrefix)*" }
+        Where-Object { $_.Name -like "$([IdentityManager]::SecretPrefix)*" }
 
         return $secrets | ForEach-Object {
             $_.Name.Replace([IdentityManager]::SecretPrefix, '')
@@ -459,9 +463,9 @@ class ChatSession {
         # Store session ID for closure
         $sid = $this.SessionId
         $this.TimeoutTimer.add_Elapsed({
-            Write-Warning "Session $sid timed out"
-            [SessionManager]::CloseSession($sid)
-        })
+                Write-Warning "Session $sid timed out"
+                [SessionManager]::CloseSession($sid)
+            })
         $this.TimeoutTimer.Start()
     }
 
@@ -625,8 +629,8 @@ class UdpTransport {
 
         # Get local IP (not 0.0.0.0)
         $localIp = [System.Net.Dns]::GetHostAddresses([System.Net.Dns]::GetHostName()) |
-            Where-Object { $_.AddressFamily -eq [System.Net.Sockets.AddressFamily]::InterNetwork } |
-            Select-Object -First 1
+        Where-Object { $_.AddressFamily -eq [System.Net.Sockets.AddressFamily]::InterNetwork } |
+        Select-Object -First 1
 
         if ($null -eq $localIp) {
             $localIp = [System.Net.IPAddress]::Loopback

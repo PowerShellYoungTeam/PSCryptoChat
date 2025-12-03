@@ -1,5 +1,21 @@
 # Hybrid Identity Model Architecture
 
+> **Implementation Status:** ✅ **PARTIALLY IMPLEMENTED**
+>
+> See `src/PSCryptoChat/PSCryptoChat.psm1` lines 210-360 for `CryptoIdentity` and `IdentityManager`.
+>
+> **Implemented:**
+> - `[IdentityMode]::Pseudonymous` and `[IdentityMode]::Anonymous` enum
+> - Simple ECDH key exchange (not X3DH)
+> - Safety number verification (Signal-style 60-digit)
+> - SecretManagement integration for persistent storage
+>
+> **NOT Implemented:**
+> - X3DH key agreement protocol
+> - Signed Prekeys / One-Time Prekeys
+> - Double Ratchet forward secrecy
+> - Stealth mode
+
 ## Executive Summary
 
 This document outlines a hybrid identity architecture for PSCryptoChat that supports both **pseudonymous** (Signal-like) and **anonymous** (Session-like) modes. The design is based on the Signal X3DH protocol with adaptations for anonymous operation.

@@ -44,7 +44,7 @@ function Find-ChatPeer {
     return $peers | ForEach-Object {
         [PSCustomObject]@{
             Name             = $_.Name
-            Host             = $_.Host
+            HostAddress      = $_.Host
             Port             = $_.Port
             ConnectionString = "$($_.Host):$($_.Port):$($_.PublicKey)"
         }

@@ -4,9 +4,18 @@ An encrypted, decentralized, optionally anonymous messaging application built wi
 
 ## Project Status
 
-✅ **Core Implementation Complete** - Crypto, Identity, Sessions, and UDP Transport working.
+✅ **v0.1.0 Released** - Core functionality complete and tested.
 
-🚧 **In Progress** - mDNS discovery, integration testing
+| Feature | Status |
+|---------|--------|
+| ECDH Key Exchange | ✅ Complete |
+| AES-256-GCM Encryption | ✅ Complete |
+| UDP Transport | ✅ Complete |
+| Identity Management | ✅ Complete |
+| Safety Numbers | ✅ Complete |
+| LAN Connectivity | ✅ Working |
+| Internet (NAT Traversal) | 🚧 Planned v0.2.0 |
+| mDNS Discovery | 🚧 Planned |
 
 ## Quick Start
 
@@ -87,12 +96,6 @@ PSCryptoChat/
 ├── src/PSCryptoChat/
 │   ├── PSCryptoChat.psd1      # Module manifest
 │   ├── PSCryptoChat.psm1      # Root module (all classes)
-│   ├── Classes/               # Reference class files
-│   │   ├── CryptoProvider.ps1 # ECDH, AES-GCM, HKDF
-│   │   ├── Identity.ps1       # Identity management
-│   │   ├── Session.ps1        # Session lifecycle
-│   │   ├── Transport.ps1      # UDP communication
-│   │   └── Discovery.ps1      # mDNS, manual discovery
 │   └── Public/                # Exported cmdlets
 │       ├── Identity.ps1       # New-CryptoIdentity, etc.
 │       ├── Session.ps1        # Start-ChatSession, etc.
@@ -104,7 +107,10 @@ PSCryptoChat/
 │   ├── UdpTest.ps1            # UDP transport loopback test
 │   ├── IntegrationTest.ps1    # Full integration tests
 │   └── ModuleTest.ps1         # Module import/cmdlet test
-└── docs/research/             # Research documentation
+├── docs/                      # Documentation
+│   ├── Connection-Flow.md     # How connections work
+│   └── research/              # Technical research docs
+└── examples/                  # Usage examples
 ```
 
 ## Cmdlets
@@ -126,8 +132,18 @@ PSCryptoChat/
 
 - PowerShell 7.0+
 - .NET 6.0+ (tested with .NET 9)
-- Windows (CNG crypto via ECDiffieHellmanCng)
-- Optional: `Microsoft.PowerShell.SecretManagement` for identity storage
+- **Windows** (required - uses CNG crypto via ECDiffieHellmanCng)
+- Optional: `Microsoft.PowerShell.SecretManagement` for persistent identity storage
+
+## Platform Support
+
+| Platform | Status | Notes |
+|----------|--------|-------|
+| **Windows** | ✅ Supported | Full support via ECDiffieHellmanCng (CNG) |
+| **Linux** | 🚧 Planned | Future release - requires OpenSSL backend implementation |
+| **macOS** | 🚧 Planned | Future release - requires OpenSSL backend implementation |
+
+> **Note**: The current implementation uses Windows CNG (Cryptography Next Generation) APIs directly. Cross-platform support using .NET's platform-agnostic crypto APIs is on the roadmap.
 
 ## Running Tests
 
@@ -164,18 +180,40 @@ $safetyNumber = $identity.GetSafetyNumber($peerKey)
 - **No Message History**: Ephemeral by design
 - **Key Clearing**: `Array.Clear()` and `Dispose()` on session end
 - **No Metadata Storage**: Connection strings are transient
-- **Platform Note**: Windows uses CNG (ECDiffieHellmanCng), Linux/macOS use OpenSSL backend
 
-## Research Documentation
+## Known Limitations
 
-Detailed research findings in [`docs/research/`](./docs/research/):
+### Network Connectivity
 
-- [00-Research-Summary.md](./docs/research/00-Research-Summary.md) - Overview and recommendations
-- [01-ECDH-P256-Implementation.md](./docs/research/01-ECDH-P256-Implementation.md) - P-256 ECDH in PowerShell/.NET
-- [02-Hybrid-Identity-Architecture.md](./docs/research/02-Hybrid-Identity-Architecture.md) - Identity system design
-- [03-Bootstrap-Server-Design.md](./docs/research/03-Bootstrap-Server-Design.md) - Peer discovery patterns
-- [04-P2P-Libraries-NAT-Traversal.md](./docs/research/04-P2P-Libraries-NAT-Traversal.md) - NAT traversal options
+- **LAN Only**: v0.1.0 works on local networks, localhost, or VPN tunnels
+- **No NAT Traversal**: Direct internet connections require manual port forwarding
+- **Why?**: Connection strings contain private LAN IPs (e.g., `192.168.x.x`) which are unreachable from the public internet
+
+### Supported Scenarios
+
+| Scenario | Works? |
+|----------|--------|
+| Same machine (localhost) | ✅ Yes |
+| Same LAN (192.168.x.x) | ✅ Yes |
+| VPN/Tailscale/ZeroTier | ✅ Yes |
+| Port forwarding configured | ✅ Yes |
+| Direct internet (no NAT bypass) | ❌ No |
+
+### Planned for v0.2.0
+
+- STUN integration for public IP discovery
+- ICE candidate exchange for NAT traversal
+- See [Internet Connectivity Analysis](./docs/Internet-Connectivity-Analysis.md) for technical details
+
+### Platform
+
+- **Windows only** - Uses CNG (ECDiffieHellmanCng). Linux/macOS support planned.
+
+## Documentation
+
+- [Connection Flow](./docs/Connection-Flow.md) - How Host and Peer connect and exchange messages
+- [Research Documentation](./docs/research/) - Technical design decisions and implementation details
 
 ## License
 
-MIT
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
