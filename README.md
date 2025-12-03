@@ -19,30 +19,60 @@ An encrypted, decentralized, optionally anonymous messaging application built wi
 
 ## Quick Start
 
+There are two ways to use PSCryptoChat:
+
+### Option 1: Interactive Chat Script (Recommended)
+
+The easiest way - use `Chat.ps1` for a full interactive experience:
+
+**Terminal 1 (Host):**
+
 ```powershell
-# Import the module
-Import-Module .\src\PSCryptoChat\PSCryptoChat.psd1
-
-# Create an anonymous identity (ephemeral)
-New-CryptoIdentity -Anonymous
-
-# Start listening for connections
-$session = Start-ChatSession -Listen -Port 9000
-# Output: Share this connection string with peer:
-# 192.168.1.100:9000:MFkwEwYHKoZIzj0CAQYIKoZI...
-
-# On another machine, connect using the connection string
-Start-ChatSession -Peer "192.168.1.100:9000:BASE64PUBLICKEY..."
-
-# Send messages
-Send-ChatMessage "Hello, secure world!"
-
-# Receive messages
-Receive-ChatMessage -Continuous
-
-# Stop session (securely clears keys)
-Stop-ChatSession
+.\Chat.ps1 -Listen -Port 9000
 ```
+
+**Terminal 2 (Peer):**
+
+```powershell
+.\Chat.ps1 -Connect -Peer localhost -Port 9000
+# Or for LAN: .\Chat.ps1 -Connect -Peer 192.168.1.100 -Port 9000
+```
+
+Both terminals show safety numbers to verify, then you can type messages back and forth. Type `quit` to exit.
+
+### Option 2: Module Cmdlets (Programmatic)
+
+For scripting or building your own chat interface:
+
+**Terminal 1 (Host):**
+
+```powershell
+Import-Module .\src\PSCryptoChat\PSCryptoChat.psd1
+New-CryptoIdentity -Anonymous
+Start-ChatSession -Listen -Port 9000
+# Copy the connection string shown
+Receive-ChatMessage -Continuous   # Wait for peer + receive messages
+```
+
+**Terminal 2 (Peer):**
+
+```powershell
+Import-Module .\src\PSCryptoChat\PSCryptoChat.psd1
+New-CryptoIdentity -Anonymous
+Start-ChatSession -Peer "<connection-string-from-host>"
+Send-ChatMessage "Hello!"
+Receive-ChatMessage -Continuous
+```
+
+### Comparison
+
+| Feature | Chat.ps1 | Module Cmdlets |
+|---------|----------|----------------|
+| **Best for** | Interactive chat | Scripts/automation |
+| **Input mode** | Real-time typing | Command-by-command |
+| **Bidirectional** | Automatic | Manual (call Send/Receive) |
+| **Session handling** | Automatic | Manual cleanup needed |
+| **Customization** | Limited | Full control |
 
 ## Features
 

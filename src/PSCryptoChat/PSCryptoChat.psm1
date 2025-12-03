@@ -550,6 +550,7 @@ class UdpTransport {
     [string]$RemoteHost
     [int]$RemotePort
     [bool]$IsListening
+    [System.Net.IPEndPoint]$LastReceivedFrom
 
     hidden [System.Net.Sockets.UdpClient]$Client
     hidden [System.Threading.CancellationTokenSource]$CancelToken
@@ -585,7 +586,12 @@ class UdpTransport {
         }
 
         if ($this.RemoteHost) {
+            # Connected mode - use the connected endpoint
             $null = $this.Client.Send($Data, $Data.Length)
+        }
+        elseif ($null -ne $this.LastReceivedFrom) {
+            # Host mode - reply to the last received endpoint
+            $null = $this.Client.Send($Data, $Data.Length, $this.LastReceivedFrom)
         }
         else {
             throw "Not connected to remote host"
@@ -606,7 +612,10 @@ class UdpTransport {
         $this.Client.Client.ReceiveTimeout = $TimeoutMs
 
         try {
-            return $this.Client.Receive([ref]$endpoint)
+            $data = $this.Client.Receive([ref]$endpoint)
+            # Store the sender's endpoint for reply (enables host to send back)
+            $this.LastReceivedFrom = $endpoint
+            return $data
         }
         catch [System.Net.Sockets.SocketException] {
             if ($_.Exception.SocketErrorCode -eq [System.Net.Sockets.SocketError]::TimedOut) {
