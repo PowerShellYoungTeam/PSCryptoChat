@@ -356,7 +356,7 @@ Stop-ChatSession -All
 
 ## Recommendations
 
-### For v0.1.0 (Current)
+### For v0.1.1 (Current)
 
 Document the limitation clearly:
 - Works on LAN
