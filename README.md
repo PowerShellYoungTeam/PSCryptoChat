@@ -4,7 +4,7 @@ An encrypted, decentralized, optionally anonymous messaging application built wi
 
 ## Project Status
 
-✅ **v0.1.0 Released** - Core functionality complete and tested.
+✅ **v0.1.1 Released** - Core functionality complete and tested.
 
 | Feature | Status |
 |---------|--------|
@@ -173,6 +173,7 @@ PSCryptoChat/
 | `Send-ChatMessage` | Send encrypted message |
 | `Receive-ChatMessage` | Receive and decrypt messages |
 | `Find-ChatPeer` | Discover peers on LAN via mDNS |
+| `Start-CryptoChat` | Interactive chat with automatic session handling |
 
 ## Requirements
 
@@ -231,7 +232,7 @@ $safetyNumber = $identity.GetSafetyNumber($peerKey)
 
 ### Network Connectivity
 
-- **LAN Only**: v0.1.0 works on local networks, localhost, or VPN tunnels
+- **LAN Only**: Currently works on local networks, localhost, or VPN tunnels
 - **No NAT Traversal**: Direct internet connections require manual port forwarding
 - **Why?**: Connection strings contain private LAN IPs (e.g., `192.168.x.x`) which are unreachable from the public internet
 
