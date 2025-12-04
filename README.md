@@ -232,7 +232,7 @@ $safetyNumber = $identity.GetSafetyNumber($peerKey)
 
 ### Network Connectivity
 
-- **LAN Only**: v0.1.0 works on local networks, localhost, or VPN tunnels
+- **LAN Only**: Currently works on local networks, localhost, or VPN tunnels
 - **No NAT Traversal**: Direct internet connections require manual port forwarding
 - **Why?**: Connection strings contain private LAN IPs (e.g., `192.168.x.x`) which are unreachable from the public internet
 
