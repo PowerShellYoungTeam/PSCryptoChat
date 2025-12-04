@@ -1,7 +1,7 @@
 @{
     # Module manifest for PSCryptoChat
     RootModule           = 'PSCryptoChat.psm1'
-    ModuleVersion        = '0.1.0'
+    ModuleVersion        = '0.1.1'
     GUID                 = '2091ae77-a86d-4026-b9bb-7068cb019280'
     Author               = 'PowerShellYoungTeam'
     CompanyName          = 'PowerShellYoungTeam'
@@ -33,7 +33,10 @@
 
         # Discovery
         'Find-ChatPeer',
-        'Get-ConnectionString'
+        'Get-ConnectionString',
+
+        # Interactive Chat
+        'Start-CryptoChat'
     )
 
     # Cmdlets to export (none - pure PowerShell module)
@@ -51,7 +54,7 @@
             Tags                       = @('encryption', 'messaging', 'p2p', 'privacy', 'chat', 'security', 'cryptography', 'PSEdition_Core', 'Windows')
             LicenseUri                 = 'https://github.com/PowerShellYoungTeam/PSCryptoChat/blob/main/LICENSE'
             ProjectUri                 = 'https://github.com/PowerShellYoungTeam/PSCryptoChat'
-            ReleaseNotes               = 'Initial release - Core cryptographic messaging with ECDH key exchange and AES-GCM encryption.'
+            ReleaseNotes               = 'v0.1.1 - Added Start-CryptoChat cmdlet for interactive chat sessions. Fixed GitHub Actions workflow permissions for automated releases.'
             ExternalModuleDependencies = @('Microsoft.PowerShell.SecretManagement')
         }
     }

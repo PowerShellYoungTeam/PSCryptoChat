@@ -794,6 +794,7 @@ $script:CurrentIdentity = $null
 . "$PSScriptRoot\Public\Session.ps1"
 . "$PSScriptRoot\Public\Messaging.ps1"
 . "$PSScriptRoot\Public\Discovery.ps1"
+. "$PSScriptRoot\Public\Chat.ps1"
 
 # Module initialization
 Write-Verbose "PSCryptoChat module loaded from $PSScriptRoot"

@@ -19,9 +19,25 @@ An encrypted, decentralized, optionally anonymous messaging application built wi
 
 ## Quick Start
 
-There are two ways to use PSCryptoChat:
+### From PowerShell Gallery (Recommended)
 
-### Option 1: Interactive Chat Script (Recommended)
+```powershell
+# Install the module
+Install-Module PSCryptoChat -Scope CurrentUser
+
+# Terminal 1 - Start as host
+Start-CryptoChat -Listen -Port 9000
+
+# Terminal 2 - Connect as peer
+Start-CryptoChat -Connect -Peer localhost -Port 9000
+# Or for LAN: Start-CryptoChat -Connect -Peer 192.168.1.100 -Port 9000
+```
+
+### From Repository (Development)
+
+There are two ways to use PSCryptoChat from the repo:
+
+#### Option 1: Interactive Chat Script
 
 The easiest way - use `Chat.ps1` for a full interactive experience:
 
@@ -40,7 +56,7 @@ The easiest way - use `Chat.ps1` for a full interactive experience:
 
 Both terminals show safety numbers to verify, then you can type messages back and forth. Type `quit` to exit.
 
-### Option 2: Module Cmdlets (Programmatic)
+#### Option 2: Module Cmdlets (Programmatic)
 
 For scripting or building your own chat interface:
 
