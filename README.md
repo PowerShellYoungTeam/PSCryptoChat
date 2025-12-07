@@ -1,5 +1,9 @@
 # PSCryptoChat
 
+[![CI](https://github.com/PowerShellYoungTeam/PSCryptoChat/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/PowerShellYoungTeam/PSCryptoChat/actions/workflows/ci.yml)
+[![PSGallery Version](https://img.shields.io/powershellgallery/v/PSCryptoChat?color=blue)](https://www.powershellgallery.com/packages/PSCryptoChat)
+[![PSGallery Downloads](https://img.shields.io/powershellgallery/dt/PSCryptoChat?color=blue)](https://www.powershellgallery.com/packages/PSCryptoChat)
+
 An encrypted, decentralized, optionally anonymous messaging application built with PowerShell/.NET.
 
 ## Project Status
