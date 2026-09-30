@@ -826,37 +826,47 @@ class PeerHandshakeWaiter {
         $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
         $nextRetry = $RetryIntervalMilliseconds
         $diagnostics = [System.Collections.Generic.List[string]]::new()
+        $diagnosticLimit = 20
         $remoteEndpoint = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Any, 0)
 
         while ($stopwatch.ElapsedMilliseconds -lt $TimeoutMilliseconds) {
+            $elapsed = [int]$stopwatch.ElapsedMilliseconds
+            if ($elapsed -ge $nextRetry -and $elapsed -lt $TimeoutMilliseconds) {
+                $null = $Client.Send($HandshakeBytes, $HandshakeBytes.Length, $PeerEndpoint)
+                $nextRetry += $RetryIntervalMilliseconds
+            }
+
             $remaining = $TimeoutMilliseconds - [int]$stopwatch.ElapsedMilliseconds
-            $Client.Client.ReceiveTimeout = [Math]::Max(1, [Math]::Min(2000, $remaining))
+            $untilRetry = $nextRetry - [int]$stopwatch.ElapsedMilliseconds
+            $Client.Client.ReceiveTimeout = [Math]::Max(1, [Math]::Min(2000, [Math]::Min($remaining, $untilRetry)))
 
             try {
                 $data = $Client.Receive([ref]$remoteEndpoint)
-                $text = [System.Text.Encoding]::UTF8.GetString($data)
-                $message = [MessageProtocol]::Parse($text)
-
-                if ($message.type -eq "handshake") {
-                    if ($remoteEndpoint.Equals($PeerEndpoint)) {
-                        return @{
-                            Message     = $message
-                            Endpoint    = $remoteEndpoint
-                            Diagnostics = $diagnostics.ToArray()
-                        }
-                    }
-
-                    if ($diagnostics.Count -lt 10) {
-                        $diagnostics.Add("Ignoring handshake from unexpected endpoint '$remoteEndpoint'.")
+                if (-not $remoteEndpoint.Equals($PeerEndpoint)) {
+                    if ($diagnostics.Count -lt $diagnosticLimit) {
+                        $diagnostics.Add("Ignored datagram from unexpected endpoint '$remoteEndpoint'.")
                     }
                     continue
                 }
 
-                if ($diagnostics.Count -lt 10) {
-                    if ($message.type -eq "unknown") {
+                $text = [System.Text.Encoding]::UTF8.GetString($data)
+                $message = [MessageProtocol]::Parse($text)
+
+                if ($message.type -eq "handshake") {
+                    return @{
+                        Message     = $message
+                        Endpoint    = $remoteEndpoint
+                        Diagnostics = $diagnostics.ToArray()
+                    }
+                }
+
+                if ($message.type -eq "unknown") {
+                    if ($diagnostics.Count -lt $diagnosticLimit) {
                         $diagnostics.Add($message.error)
                     }
-                    else {
+                }
+                else {
+                    if ($diagnostics.Count -lt $diagnosticLimit) {
                         $diagnostics.Add("Unexpected message type '$($message.type)' during handshake.")
                     }
                 }
@@ -864,12 +874,6 @@ class PeerHandshakeWaiter {
             catch [System.Net.Sockets.SocketException] {
                 if ($_.Exception.SocketErrorCode -ne [System.Net.Sockets.SocketError]::TimedOut) {
                     throw
-                }
-
-                if ($stopwatch.ElapsedMilliseconds -ge $nextRetry -and
-                    $stopwatch.ElapsedMilliseconds -lt $TimeoutMilliseconds) {
-                    $null = $Client.Send($HandshakeBytes, $HandshakeBytes.Length, $PeerEndpoint)
-                    $nextRetry += $RetryIntervalMilliseconds
                 }
             }
         }

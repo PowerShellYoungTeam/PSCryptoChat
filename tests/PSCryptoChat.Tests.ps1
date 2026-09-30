@@ -878,6 +878,8 @@ Describe "UdpTransport" {
 #endregion
 
 #region MessageProtocol Tests
+$handshakePublicKey = "MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEnZjfeKVHXQ5/pibvxSpK7iMmftOhsK8g15k6+kPYBgIiI6YHwgzUeT3duMZzW42GIdlKNjRfBzIbm4dC0/7+xw=="
+
 Describe "MessageProtocol" {
     Context "Message Creation" {
         It "Should create handshake message" {
@@ -977,17 +979,12 @@ Describe "MessageProtocol" {
         }
 
         It "Should parse a handshake with a valid public key" {
-            $keyPair = [CryptoProvider]::NewKeyPair()
-            try {
-                $publicKey = [CryptoProvider]::ExportPublicKey($keyPair)
-                $parsed = [MessageProtocol]::Parse([MessageProtocol]::CreateHandshake($publicKey, "session"))
+            $parsed = [MessageProtocol]::Parse(
+                (@{ type = "handshake"; publicKey = $handshakePublicKey; sessionId = "session" } | ConvertTo-Json -Compress)
+            )
 
-                $parsed.type | Should -Be "handshake"
-                $parsed.publicKey | Should -Be $publicKey
-            }
-            finally {
-                $keyPair.Dispose()
-            }
+            $parsed.type | Should -Be "handshake"
+            $parsed.publicKey | Should -Be $handshakePublicKey
         }
 
         It "Should explain malformed JSON errors" {
@@ -1005,11 +1002,11 @@ Describe "PeerHandshakeWaiter" {
     It "Should accept a host response before the timeout" {
         $client = [System.Net.Sockets.UdpClient]::new([System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, 0))
         $hostSocket = [System.Net.Sockets.UdpClient]::new([System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, 0))
-        $hostKey = [CryptoProvider]::NewKeyPair()
         try {
             $hostEndpoint = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, $hostSocket.Client.LocalEndPoint.Port)
-            $publicKey = [CryptoProvider]::ExportPublicKey($hostKey)
-            $response = [System.Text.Encoding]::UTF8.GetBytes([MessageProtocol]::CreateHandshake($publicKey, "host-session"))
+            $response = [System.Text.Encoding]::UTF8.GetBytes(
+                (@{ type = "handshake"; publicKey = $handshakePublicKey; sessionId = "host-session" } | ConvertTo-Json -Compress)
+            )
             $null = $hostSocket.Send($response, $response.Length, [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, $client.Client.LocalEndPoint.Port))
 
             $result = [PeerHandshakeWaiter]::WaitForResponse($client, $hostEndpoint, [byte[]](1), 1000, 250)
@@ -1020,7 +1017,6 @@ Describe "PeerHandshakeWaiter" {
         finally {
             $client.Dispose()
             $hostSocket.Dispose()
-            $hostKey.Dispose()
         }
     }
 
@@ -1031,7 +1027,9 @@ Describe "PeerHandshakeWaiter" {
         try {
             $clientEndpoint = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, $client.Client.LocalEndPoint.Port)
             $hostEndpoint = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, $hostSocket.Client.LocalEndPoint.Port)
-            $response = [System.Text.Encoding]::UTF8.GetBytes('{"type":"handshake","publicKey":"test-key","sessionId":"host-session"}')
+            $response = [System.Text.Encoding]::UTF8.GetBytes(
+                (@{ type = "handshake"; publicKey = $handshakePublicKey; sessionId = "host-session" } | ConvertTo-Json -Compress)
+            )
             $null = $unexpectedSocket.Send($response, $response.Length, $clientEndpoint)
             $null = $hostSocket.Send($response, $response.Length, $clientEndpoint)
 
@@ -1051,13 +1049,13 @@ Describe "PeerHandshakeWaiter" {
     It "Should accept a host response arriving near the timeout deadline" {
         $client = [System.Net.Sockets.UdpClient]::new([System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, 0))
         $hostSocket = [System.Net.Sockets.UdpClient]::new([System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, 0))
-        $hostKey = [CryptoProvider]::NewKeyPair()
         $replyPowerShell = $null
         try {
             $clientEndpoint = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, $client.Client.LocalEndPoint.Port)
             $hostEndpoint = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, $hostSocket.Client.LocalEndPoint.Port)
-            $publicKey = [CryptoProvider]::ExportPublicKey($hostKey)
-            $response = [System.Text.Encoding]::UTF8.GetBytes([MessageProtocol]::CreateHandshake($publicKey, "host-session"))
+            $response = [System.Text.Encoding]::UTF8.GetBytes(
+                (@{ type = "handshake"; publicKey = $handshakePublicKey; sessionId = "host-session" } | ConvertTo-Json -Compress)
+            )
             $replyPowerShell = [System.Management.Automation.PowerShell]::Create()
             $null = $replyPowerShell.AddScript({
                 param($delay, $bytes, $endpoint, $sender)
@@ -1075,7 +1073,111 @@ Describe "PeerHandshakeWaiter" {
             if ($null -ne $replyPowerShell) { $replyPowerShell.Dispose() }
             $client.Dispose()
             $hostSocket.Dispose()
-            $hostKey.Dispose()
+        }
+    }
+
+    It "Should continue waiting after receiving an unusable public key" {
+        $client = [System.Net.Sockets.UdpClient]::new([System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, 0))
+        $hostSocket = [System.Net.Sockets.UdpClient]::new([System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, 0))
+        try {
+            $clientEndpoint = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, $client.Client.LocalEndPoint.Port)
+            $hostEndpoint = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, $hostSocket.Client.LocalEndPoint.Port)
+            $invalidKeyResponse = [System.Text.Encoding]::UTF8.GetBytes(
+                '{"type":"handshake","publicKey":"test-key","sessionId":"bad-session"}'
+            )
+            $validResponse = [System.Text.Encoding]::UTF8.GetBytes(
+                (@{ type = "handshake"; publicKey = $handshakePublicKey; sessionId = "host-session" } | ConvertTo-Json -Compress)
+            )
+
+            $null = $hostSocket.Send($invalidKeyResponse, $invalidKeyResponse.Length, $clientEndpoint)
+            $null = $hostSocket.Send($validResponse, $validResponse.Length, $clientEndpoint)
+
+            $result = [PeerHandshakeWaiter]::WaitForResponse($client, $hostEndpoint, [byte[]](1), 1000, 250)
+
+            $result.Message.sessionId | Should -Be "host-session"
+            $result.Diagnostics.Count | Should -Be 1
+        }
+        finally {
+            $client.Dispose()
+            $hostSocket.Dispose()
+        }
+    }
+
+    It "Should bound retained diagnostics while processing malformed datagrams" {
+        $client = [System.Net.Sockets.UdpClient]::new([System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, 0))
+        $hostSocket = [System.Net.Sockets.UdpClient]::new([System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, 0))
+        try {
+            $clientEndpoint = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, $client.Client.LocalEndPoint.Port)
+            $hostEndpoint = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, $hostSocket.Client.LocalEndPoint.Port)
+            $malformed = [System.Text.Encoding]::UTF8.GetBytes('{"type":')
+            $validResponse = [System.Text.Encoding]::UTF8.GetBytes(
+                (@{ type = "handshake"; publicKey = $handshakePublicKey; sessionId = "host-session" } | ConvertTo-Json -Compress)
+            )
+
+            1..30 | ForEach-Object { $null = $hostSocket.Send($malformed, $malformed.Length, $clientEndpoint) }
+            $null = $hostSocket.Send($validResponse, $validResponse.Length, $clientEndpoint)
+
+            $result = [PeerHandshakeWaiter]::WaitForResponse($client, $hostEndpoint, [byte[]](1), 1000, 250)
+
+            $result.Message.type | Should -Be "handshake"
+            $result.Diagnostics.Count | Should -BeLessOrEqual 20
+        }
+        finally {
+            $client.Dispose()
+            $hostSocket.Dispose()
+        }
+    }
+
+    It "Should retry while malformed datagrams arrive continuously" {
+        $client = [System.Net.Sockets.UdpClient]::new([System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, 0))
+        $hostSocket = [System.Net.Sockets.UdpClient]::new([System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, 0))
+        $spamPowerShell = $null
+        try {
+            $clientEndpoint = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, $client.Client.LocalEndPoint.Port)
+            $hostEndpoint = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, $hostSocket.Client.LocalEndPoint.Port)
+            $spamPowerShell = [System.Management.Automation.PowerShell]::Create()
+            $null = $spamPowerShell.AddScript({
+                param($endpoint)
+                $sender = [System.Net.Sockets.UdpClient]::new()
+                $bytes = [System.Text.Encoding]::UTF8.GetBytes('{"type":')
+                $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+                try {
+                    while ($stopwatch.ElapsedMilliseconds -lt 450) {
+                        $null = $sender.Send($bytes, $bytes.Length, $endpoint)
+                        Start-Sleep -Milliseconds 5
+                    }
+                }
+                finally {
+                    $sender.Dispose()
+                }
+            }).AddArgument($clientEndpoint)
+            $spam = $spamPowerShell.BeginInvoke()
+
+            $null = [PeerHandshakeWaiter]::WaitForResponse($client, $hostEndpoint, [byte[]](1), 600, 100)
+            $spamPowerShell.EndInvoke($spam)
+
+            $hostSocket.Client.ReceiveTimeout = 100
+            $retryCount = 0
+            while ($true) {
+                try {
+                    $senderEndpoint = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Any, 0)
+                    $null = $hostSocket.Receive([ref]$senderEndpoint)
+                    $retryCount++
+                }
+                catch [System.Net.Sockets.SocketException] {
+                    if ($_.Exception.SocketErrorCode -eq [System.Net.Sockets.SocketError]::TimedOut) {
+                        break
+                    }
+                    throw
+                }
+            }
+
+            $retryCount | Should -BeGreaterOrEqual 2
+        }
+        finally {
+            if ($null -ne $spamPowerShell) { $spamPowerShell.Dispose() }
+            $client.Dispose()
+            $hostSocket.Dispose()
         }
     }
 
