@@ -799,11 +799,13 @@ class PeerHandshakeWaiter {
                     }
                 }
 
-                if ($message.type -eq "unknown") {
-                    $diagnostics.Add($message.error)
-                }
-                else {
-                    $diagnostics.Add("Unexpected message type '$($message.type)' during handshake.")
+                if ($diagnostics.Count -lt 10) {
+                    if ($message.type -eq "unknown") {
+                        $diagnostics.Add($message.error)
+                    }
+                    else {
+                        $diagnostics.Add("Unexpected message type '$($message.type)' during handshake.")
+                    }
                 }
             }
             catch [System.Net.Sockets.SocketException] {
