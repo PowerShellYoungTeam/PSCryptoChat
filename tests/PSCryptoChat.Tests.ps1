@@ -955,6 +955,27 @@ Describe "MessageProtocol" {
             $parsed.error | Should -Match "missing required field 'content'"
         }
 
+        It "Should reject handshakes with an invalid public key" {
+            $parsed = [MessageProtocol]::Parse('{"type":"handshake","publicKey":"test-key"}')
+
+            $parsed.type | Should -Be "unknown"
+            $parsed.error | Should -Match "invalid ECDH public key"
+        }
+
+        It "Should parse a handshake with a valid public key" {
+            $keyPair = [CryptoProvider]::NewKeyPair()
+            try {
+                $publicKey = [CryptoProvider]::ExportPublicKey($keyPair)
+                $parsed = [MessageProtocol]::Parse([MessageProtocol]::CreateHandshake($publicKey, "session"))
+
+                $parsed.type | Should -Be "handshake"
+                $parsed.publicKey | Should -Be $publicKey
+            }
+            finally {
+                $keyPair.Dispose()
+            }
+        }
+
         It "Should explain malformed JSON errors" {
             $parsed = [MessageProtocol]::Parse('{"type":')
 
@@ -970,9 +991,11 @@ Describe "PeerHandshakeWaiter" {
     It "Should accept a host response before the timeout" {
         $client = [System.Net.Sockets.UdpClient]::new([System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, 0))
         $hostSocket = [System.Net.Sockets.UdpClient]::new([System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, 0))
+        $hostKey = [CryptoProvider]::NewKeyPair()
         try {
             $hostEndpoint = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, $hostSocket.Client.LocalEndPoint.Port)
-            $response = [System.Text.Encoding]::UTF8.GetBytes('{"type":"handshake","publicKey":"test-key","sessionId":"host-session"}')
+            $publicKey = [CryptoProvider]::ExportPublicKey($hostKey)
+            $response = [System.Text.Encoding]::UTF8.GetBytes([MessageProtocol]::CreateHandshake($publicKey, "host-session"))
             $null = $hostSocket.Send($response, $response.Length, [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, $client.Client.LocalEndPoint.Port))
 
             $result = [PeerHandshakeWaiter]::WaitForResponse($client, $hostEndpoint, [byte[]](1), 1000, 250)
@@ -983,6 +1006,7 @@ Describe "PeerHandshakeWaiter" {
         finally {
             $client.Dispose()
             $hostSocket.Dispose()
+            $hostKey.Dispose()
         }
     }
 
@@ -1013,11 +1037,13 @@ Describe "PeerHandshakeWaiter" {
     It "Should accept a host response arriving near the timeout deadline" {
         $client = [System.Net.Sockets.UdpClient]::new([System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, 0))
         $hostSocket = [System.Net.Sockets.UdpClient]::new([System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, 0))
+        $hostKey = [CryptoProvider]::NewKeyPair()
         $replyPowerShell = $null
         try {
             $clientEndpoint = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, $client.Client.LocalEndPoint.Port)
             $hostEndpoint = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, $hostSocket.Client.LocalEndPoint.Port)
-            $response = [System.Text.Encoding]::UTF8.GetBytes('{"type":"handshake","publicKey":"test-key","sessionId":"host-session"}')
+            $publicKey = [CryptoProvider]::ExportPublicKey($hostKey)
+            $response = [System.Text.Encoding]::UTF8.GetBytes([MessageProtocol]::CreateHandshake($publicKey, "host-session"))
             $replyPowerShell = [System.Management.Automation.PowerShell]::Create()
             $null = $replyPowerShell.AddScript({
                 param($delay, $bytes, $endpoint, $sender)
@@ -1035,6 +1061,7 @@ Describe "PeerHandshakeWaiter" {
             if ($null -ne $replyPowerShell) { $replyPowerShell.Dispose() }
             $client.Dispose()
             $hostSocket.Dispose()
+            $hostKey.Dispose()
         }
     }
 

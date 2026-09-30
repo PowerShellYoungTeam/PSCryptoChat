@@ -761,6 +761,36 @@ class MessageProtocol {
             }
         }
 
+        if ($parsed.type -eq "handshake") {
+            $publicKey = $null
+            try {
+                $publicKeyBytes = [Convert]::FromBase64String($parsed.publicKey)
+                if ([System.Runtime.InteropServices.RuntimeInformation]::IsOSPlatform([System.Runtime.InteropServices.OSPlatform]::Windows)) {
+                    $publicKey = [ECDiffieHellmanCng]::new(256)
+                }
+                else {
+                    $publicKey = [ECDiffieHellman]::Create([ECCurve]::NamedCurves.nistP256)
+                }
+                $bytesRead = 0
+                $publicKey.ImportSubjectPublicKeyInfo($publicKeyBytes, [ref]$bytesRead)
+                if ($bytesRead -ne $publicKeyBytes.Length -or $publicKey.KeySize -ne 256) {
+                    throw "Invalid ECDH public key."
+                }
+            }
+            catch {
+                return @{
+                    type  = "unknown"
+                    raw   = $Message
+                    error = "Handshake message contains an invalid ECDH public key."
+                }
+            }
+            finally {
+                if ($null -ne $publicKey) {
+                    $publicKey.Dispose()
+                }
+            }
+        }
+
         return $parsed
     }
 }
