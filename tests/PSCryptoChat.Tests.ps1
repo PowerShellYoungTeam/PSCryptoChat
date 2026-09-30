@@ -919,7 +919,7 @@ Describe "MessageProtocol" {
 
     Context "Message Parsing" {
         It "Should parse valid JSON message" {
-            $json = '{"type":"message","content":"test","version":"1.0"}'
+            $json = '{"type":"message","content":"test","version":"1.0","timestamp":"2026-09-30T23:00:00.0000000Z"}'
             $parsed = [MessageProtocol]::Parse($json)
 
             $parsed.type | Should -Be "message"
@@ -953,6 +953,20 @@ Describe "MessageProtocol" {
 
             $parsed.type | Should -Be "unknown"
             $parsed.error | Should -Match "missing required field 'content'"
+        }
+
+        It "Should reject message without a timestamp" {
+            $parsed = [MessageProtocol]::Parse('{"type":"message","content":"test"}')
+
+            $parsed.type | Should -Be "unknown"
+            $parsed.error | Should -Match "missing or has an invalid timestamp"
+        }
+
+        It "Should reject message with an invalid timestamp" {
+            $parsed = [MessageProtocol]::Parse('{"type":"message","content":"test","timestamp":"not-a-timestamp"}')
+
+            $parsed.type | Should -Be "unknown"
+            $parsed.error | Should -Match "missing or has an invalid timestamp"
         }
 
         It "Should reject handshakes with an invalid public key" {

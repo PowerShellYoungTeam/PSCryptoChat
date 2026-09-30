@@ -791,6 +791,22 @@ class MessageProtocol {
             }
         }
 
+        if ($parsed.type -eq "message") {
+            $isValidTimestamp = $parsed.timestamp -is [DateTime]
+            if (-not $isValidTimestamp -and $parsed.timestamp -is [string]) {
+                $timestamp = [DateTime]::MinValue
+                $isValidTimestamp = [DateTime]::TryParse($parsed.timestamp, [Globalization.CultureInfo]::InvariantCulture, [Globalization.DateTimeStyles]::RoundtripKind, [ref]$timestamp)
+            }
+
+            if (-not $isValidTimestamp) {
+                return @{
+                    type  = "unknown"
+                    raw   = $Message
+                    error = "Message type 'message' is missing or has an invalid timestamp."
+                }
+            }
+        }
+
         return $parsed
     }
 }
