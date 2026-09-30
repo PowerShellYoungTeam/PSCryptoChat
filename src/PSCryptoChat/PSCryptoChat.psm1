@@ -792,11 +792,18 @@ class PeerHandshakeWaiter {
                 $message = [MessageProtocol]::Parse($text)
 
                 if ($message.type -eq "handshake") {
-                    return @{
-                        Message     = $message
-                        Endpoint    = $remoteEndpoint
-                        Diagnostics = $diagnostics.ToArray()
+                    if ($remoteEndpoint.Equals($PeerEndpoint)) {
+                        return @{
+                            Message     = $message
+                            Endpoint    = $remoteEndpoint
+                            Diagnostics = $diagnostics.ToArray()
+                        }
                     }
+
+                    if ($diagnostics.Count -lt 10) {
+                        $diagnostics.Add("Ignoring handshake from unexpected endpoint '$remoteEndpoint'.")
+                    }
+                    continue
                 }
 
                 if ($diagnostics.Count -lt 10) {

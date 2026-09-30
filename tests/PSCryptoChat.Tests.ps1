@@ -986,6 +986,30 @@ Describe "PeerHandshakeWaiter" {
         }
     }
 
+    It "Should ignore a handshake from an unexpected endpoint" {
+        $client = [System.Net.Sockets.UdpClient]::new([System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, 0))
+        $hostSocket = [System.Net.Sockets.UdpClient]::new([System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, 0))
+        $unexpectedSocket = [System.Net.Sockets.UdpClient]::new([System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, 0))
+        try {
+            $clientEndpoint = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, $client.Client.LocalEndPoint.Port)
+            $hostEndpoint = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, $hostSocket.Client.LocalEndPoint.Port)
+            $response = [System.Text.Encoding]::UTF8.GetBytes('{"type":"handshake","publicKey":"test-key","sessionId":"host-session"}')
+            $null = $unexpectedSocket.Send($response, $response.Length, $clientEndpoint)
+            $null = $hostSocket.Send($response, $response.Length, $clientEndpoint)
+
+            $result = [PeerHandshakeWaiter]::WaitForResponse($client, $hostEndpoint, [byte[]](1), 1000, 250)
+
+            $result.Message.type | Should -Be "handshake"
+            $result.Endpoint.Port | Should -Be $hostSocket.Client.LocalEndPoint.Port
+            $result.Diagnostics.Count | Should -Be 1
+        }
+        finally {
+            $client.Dispose()
+            $hostSocket.Dispose()
+            $unexpectedSocket.Dispose()
+        }
+    }
+
     It "Should accept a host response arriving near the timeout deadline" {
         $client = [System.Net.Sockets.UdpClient]::new([System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, 0))
         $hostSocket = [System.Net.Sockets.UdpClient]::new([System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, 0))
@@ -996,16 +1020,10 @@ Describe "PeerHandshakeWaiter" {
             $response = [System.Text.Encoding]::UTF8.GetBytes('{"type":"handshake","publicKey":"test-key","sessionId":"host-session"}')
             $replyPowerShell = [System.Management.Automation.PowerShell]::Create()
             $null = $replyPowerShell.AddScript({
-                param($delay, $bytes, $endpoint)
+                param($delay, $bytes, $endpoint, $sender)
                 Start-Sleep -Milliseconds $delay
-                $sender = [System.Net.Sockets.UdpClient]::new()
-                try {
-                    $null = $sender.Send($bytes, $bytes.Length, $endpoint)
-                }
-                finally {
-                    $sender.Dispose()
-                }
-            }).AddArgument(900).AddArgument($response).AddArgument($clientEndpoint)
+                $null = $sender.Send($bytes, $bytes.Length, $endpoint)
+            }).AddArgument(900).AddArgument($response).AddArgument($clientEndpoint).AddArgument($hostSocket)
             $reply = $replyPowerShell.BeginInvoke()
 
             $result = [PeerHandshakeWaiter]::WaitForResponse($client, $hostEndpoint, [byte[]](1), 1200, 250)
