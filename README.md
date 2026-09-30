@@ -34,8 +34,17 @@ Start-CryptoChat -Listen -Port 9000
 
 # Terminal 2 - Connect as peer
 Start-CryptoChat -Connect -Peer localhost -Port 9000
-# Or for LAN: Start-CryptoChat -Connect -Peer 192.168.1.100 -Port 9000
+# For another computer, replace this example with the host's LAN IPv4 address:
+# Start-CryptoChat -Connect -Peer 192.168.1.100 -Port 9000
 ```
+
+`192.168.1.100` is only an example. On the host, find the IPv4 address of the
+active network adapter (for example, run `ipconfig` on Windows and look for
+**IPv4 Address**). Give the peer that address, not the peer's own address or
+`localhost` (which refers to the peer's computer). Both computers must be on
+the same LAN or a reachable VPN, and the host firewall must allow UDP traffic
+on the selected port (9000 by default). Guest Wi-Fi/client isolation can also
+prevent devices on the same Wi-Fi from communicating.
 
 ### From Repository (Development)
 
@@ -55,10 +64,18 @@ The easiest way - use `Chat.ps1` for a full interactive experience:
 
 ```powershell
 .\Chat.ps1 -Connect -Peer localhost -Port 9000
-# Or for LAN: .\Chat.ps1 -Connect -Peer 192.168.1.100 -Port 9000
+# For another computer, use the host's LAN IPv4 address (example only):
+# .\Chat.ps1 -Connect -Peer 192.168.1.100 -Port 9000
 ```
 
 Both terminals show safety numbers to verify, then you can type messages back and forth. Type `quit` to exit.
+
+To find the host address on Windows, run `ipconfig` and use the **IPv4 Address**
+for its active network adapter. The peer must be able to reach that address;
+allow UDP on the chosen port in the host firewall and avoid guest networks with
+client isolation. `localhost` works only when host and peer run on the same
+computer. LAN addresses are not reachable over the public internet without
+additional network configuration.
 
 #### Option 2: Module Cmdlets (Programmatic)
 
