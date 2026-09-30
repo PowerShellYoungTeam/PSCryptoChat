@@ -937,12 +937,103 @@ Describe "MessageProtocol" {
         It "Should handle empty string" {
             $parsed = [MessageProtocol]::Parse("")
 
-            # Empty string returns null or object with unknown type
-            if ($null -eq $parsed) {
-                $true | Should -Be $true  # Acceptable behavior
-            } else {
-                $parsed.type | Should -Be "unknown"
-            }
+            $parsed.type | Should -Be "unknown"
+            $parsed.error | Should -Be "Message is empty."
+        }
+
+        It "Should reject valid JSON that is not a protocol object" {
+            $parsed = [MessageProtocol]::Parse('["message"]')
+
+            $parsed.type | Should -Be "unknown"
+            $parsed.error | Should -Be "JSON message must be an object."
+        }
+
+        It "Should reject protocol messages with missing required fields" {
+            $parsed = [MessageProtocol]::Parse('{"type":"message"}')
+
+            $parsed.type | Should -Be "unknown"
+            $parsed.error | Should -Match "missing required field 'content'"
+        }
+
+        It "Should explain malformed JSON errors" {
+            $parsed = [MessageProtocol]::Parse('{"type":')
+
+            $parsed.type | Should -Be "unknown"
+            $parsed.error | Should -Match '^Malformed JSON:'
+        }
+    }
+}
+#endregion
+
+#region PeerHandshakeWaiter Tests
+Describe "PeerHandshakeWaiter" {
+    It "Should accept a host response before the timeout" {
+        $client = [System.Net.Sockets.UdpClient]::new([System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, 0))
+        $hostSocket = [System.Net.Sockets.UdpClient]::new([System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, 0))
+        try {
+            $hostEndpoint = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, $hostSocket.Client.LocalEndPoint.Port)
+            $response = [System.Text.Encoding]::UTF8.GetBytes('{"type":"handshake","publicKey":"test-key","sessionId":"host-session"}')
+            $null = $hostSocket.Send($response, $response.Length, [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, $client.Client.LocalEndPoint.Port))
+
+            $result = [PeerHandshakeWaiter]::WaitForResponse($client, $hostEndpoint, [byte[]](1), 1000, 250)
+
+            $result.Message.type | Should -Be "handshake"
+            $result.Endpoint.Port | Should -Be $hostSocket.Client.LocalEndPoint.Port
+        }
+        finally {
+            $client.Dispose()
+            $hostSocket.Dispose()
+        }
+    }
+
+    It "Should accept a host response arriving near the timeout deadline" {
+        $client = [System.Net.Sockets.UdpClient]::new([System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, 0))
+        $hostSocket = [System.Net.Sockets.UdpClient]::new([System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, 0))
+        $replyPowerShell = $null
+        try {
+            $clientEndpoint = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, $client.Client.LocalEndPoint.Port)
+            $hostEndpoint = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, $hostSocket.Client.LocalEndPoint.Port)
+            $response = [System.Text.Encoding]::UTF8.GetBytes('{"type":"handshake","publicKey":"test-key","sessionId":"host-session"}')
+            $replyPowerShell = [System.Management.Automation.PowerShell]::Create()
+            $null = $replyPowerShell.AddScript({
+                param($delay, $bytes, $endpoint)
+                Start-Sleep -Milliseconds $delay
+                $sender = [System.Net.Sockets.UdpClient]::new()
+                try {
+                    $null = $sender.Send($bytes, $bytes.Length, $endpoint)
+                }
+                finally {
+                    $sender.Dispose()
+                }
+            }).AddArgument(900).AddArgument($response).AddArgument($clientEndpoint)
+            $reply = $replyPowerShell.BeginInvoke()
+
+            $result = [PeerHandshakeWaiter]::WaitForResponse($client, $hostEndpoint, [byte[]](1), 1200, 250)
+
+            $result.Message.type | Should -Be "handshake"
+            $replyPowerShell.EndInvoke($reply)
+        }
+        finally {
+            if ($null -ne $replyPowerShell) { $replyPowerShell.Dispose() }
+            $client.Dispose()
+            $hostSocket.Dispose()
+        }
+    }
+
+    It "Should return a clean timeout when the host does not respond" {
+        $client = [System.Net.Sockets.UdpClient]::new([System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, 0))
+        $hostSocket = [System.Net.Sockets.UdpClient]::new([System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, 0))
+        try {
+            $hostEndpoint = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Loopback, $hostSocket.Client.LocalEndPoint.Port)
+
+            $result = [PeerHandshakeWaiter]::WaitForResponse($client, $hostEndpoint, [byte[]](1), 150, 50)
+
+            $result.Message | Should -BeNullOrEmpty
+            $result.Diagnostics.Count | Should -Be 0
+        }
+        finally {
+            $client.Dispose()
+            $hostSocket.Dispose()
         }
     }
 }

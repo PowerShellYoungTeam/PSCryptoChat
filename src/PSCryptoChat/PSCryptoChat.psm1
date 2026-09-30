@@ -714,11 +714,115 @@ class MessageProtocol {
     }
 
     static [hashtable]Parse([string]$Message) {
+        if ([string]::IsNullOrWhiteSpace($Message)) {
+            return @{ type = "unknown"; raw = $Message; error = "Message is empty." }
+        }
+
         try {
-            return ($Message | ConvertFrom-Json -AsHashtable)
+            $parsed = $Message | ConvertFrom-Json -AsHashtable -ErrorAction Stop
         }
         catch {
-            return @{ type = "unknown"; raw = $Message }
+            return @{
+                type  = "unknown"
+                raw   = $Message
+                error = "Malformed JSON: $($_.Exception.Message)"
+            }
+        }
+
+        if ($parsed -isnot [System.Collections.IDictionary]) {
+            return @{ type = "unknown"; raw = $Message; error = "JSON message must be an object." }
+        }
+
+        if ($parsed.type -isnot [string] -or [string]::IsNullOrWhiteSpace($parsed.type)) {
+            return @{ type = "unknown"; raw = $Message; error = "JSON message is missing a valid type." }
+        }
+
+        $requiredField = switch ($parsed.type) {
+            "handshake" { "publicKey" }
+            "message" { "content" }
+            "ack" { "messageId" }
+            default { $null }
+        }
+
+        if ($null -eq $requiredField -and $parsed.type -ne "disconnect") {
+            return @{
+                type  = "unknown"
+                raw   = $Message
+                error = "Unsupported message type '$($parsed.type)'."
+            }
+        }
+
+        if ($null -ne $requiredField -and
+            ($parsed[$requiredField] -isnot [string] -or [string]::IsNullOrWhiteSpace($parsed[$requiredField]))) {
+            return @{
+                type  = "unknown"
+                raw   = $Message
+                error = "Message type '$($parsed.type)' is missing required field '$requiredField'."
+            }
+        }
+
+        return $parsed
+    }
+}
+
+class PeerHandshakeWaiter {
+    static [hashtable] WaitForResponse(
+        [System.Net.Sockets.UdpClient]$Client,
+        [System.Net.IPEndPoint]$PeerEndpoint,
+        [byte[]]$HandshakeBytes,
+        [int]$TimeoutMilliseconds,
+        [int]$RetryIntervalMilliseconds
+    ) {
+        if ($TimeoutMilliseconds -le 0 -or $RetryIntervalMilliseconds -le 0) {
+            throw "Handshake timeout and retry interval must be greater than zero."
+        }
+
+        $stopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+        $nextRetry = $RetryIntervalMilliseconds
+        $diagnostics = [System.Collections.Generic.List[string]]::new()
+        $remoteEndpoint = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Any, 0)
+
+        while ($stopwatch.ElapsedMilliseconds -lt $TimeoutMilliseconds) {
+            $remaining = $TimeoutMilliseconds - [int]$stopwatch.ElapsedMilliseconds
+            $Client.Client.ReceiveTimeout = [Math]::Max(1, [Math]::Min(2000, $remaining))
+
+            try {
+                $data = $Client.Receive([ref]$remoteEndpoint)
+                $text = [System.Text.Encoding]::UTF8.GetString($data)
+                $message = [MessageProtocol]::Parse($text)
+
+                if ($message.type -eq "handshake") {
+                    return @{
+                        Message     = $message
+                        Endpoint    = $remoteEndpoint
+                        Diagnostics = $diagnostics.ToArray()
+                    }
+                }
+
+                if ($message.type -eq "unknown") {
+                    $diagnostics.Add($message.error)
+                }
+                else {
+                    $diagnostics.Add("Unexpected message type '$($message.type)' during handshake.")
+                }
+            }
+            catch [System.Net.Sockets.SocketException] {
+                if ($_.Exception.SocketErrorCode -ne [System.Net.Sockets.SocketError]::TimedOut) {
+                    throw
+                }
+
+                if ($stopwatch.ElapsedMilliseconds -ge $nextRetry -and
+                    $stopwatch.ElapsedMilliseconds -lt $TimeoutMilliseconds) {
+                    $null = $Client.Send($HandshakeBytes, $HandshakeBytes.Length, $PeerEndpoint)
+                    $nextRetry += $RetryIntervalMilliseconds
+                }
+            }
+        }
+
+        return @{
+            Message     = $null
+            Endpoint    = $null
+            Diagnostics = $diagnostics.ToArray()
         }
     }
 }

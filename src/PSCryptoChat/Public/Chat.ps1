@@ -121,7 +121,12 @@ function Start-CryptoChat {
                 try {
                     $data = $udp.Receive([ref]$remoteEp)
                     $text = [System.Text.Encoding]::UTF8.GetString($data)
-                    $msg = $text | ConvertFrom-Json -AsHashtable
+                    $msg = [MessageProtocol]::Parse($text)
+
+                    if ($msg.type -eq "unknown") {
+                        Write-Warning "Ignoring invalid handshake message: $($msg.error)"
+                        continue
+                    }
 
                     if ($msg.type -eq "handshake") {
                         $peerKey = $msg.publicKey
@@ -169,12 +174,15 @@ function Start-CryptoChat {
                             continue
                         }
                     }
+                    else {
+                        Write-Warning "Ignoring unexpected message type '$($msg.type)' during handshake."
+                    }
                 }
                 catch [System.Net.Sockets.SocketException] {
                     # Timeout, continue waiting
                 }
                 catch {
-                    Write-Warning "Received malformed data during handshake"
+                    Write-Warning "Could not process handshake message: $($_.Exception.Message)"
                 }
             }
         }
@@ -202,46 +210,30 @@ function Start-CryptoChat {
             Write-Host "[*] Handshake sent, waiting for response..." -ForegroundColor DarkGray
 
             # Wait for response
-            $udp.Client.ReceiveTimeout = 2000
-            $remoteEp = [System.Net.IPEndPoint]::new([System.Net.IPAddress]::Any, 0)
-            $maxAttempts = 10
+            $timeoutMilliseconds = 60000
             $connected = $false
 
-            for ($attempt = 1; $attempt -le $maxAttempts; $attempt++) {
-                try {
-                    $data = $udp.Receive([ref]$remoteEp)
-                    $text = [System.Text.Encoding]::UTF8.GetString($data)
-                    $msg = $text | ConvertFrom-Json -AsHashtable
-
-                    if ($msg.type -eq "handshake") {
-                        $session.CompleteHandshake($msg.publicKey)
-                        # Update peer endpoint to where response came from
-                        $peerEndpoint = $remoteEp
-                        Write-Host "[+] Connected!" -ForegroundColor Green
-                        Write-Host "[*] Peer key: $($msg.publicKey.Substring(0, 40))..." -ForegroundColor DarkGray
-                        $connected = $true
-                        break
-                    }
-                }
-                catch [System.Net.Sockets.SocketException] {
-                    if ($_.Exception.SocketErrorCode -eq [System.Net.Sockets.SocketError]::TimedOut) {
-                        Write-Host "[*] Waiting... ($attempt/$maxAttempts)" -ForegroundColor DarkGray
-                        if ($attempt % 3 -eq 0) {
-                            $null = $udp.Send($handshakeBytes, $handshakeBytes.Length, $peerEndpoint)
-                            Write-Host "[*] Resending handshake..." -ForegroundColor DarkGray
-                        }
-                    }
-                    else {
-                        throw
-                    }
-                }
-                catch {
-                    Write-Warning "Received malformed data during handshake"
-                }
+            $handshakeResult = [PeerHandshakeWaiter]::WaitForResponse(
+                $udp,
+                $peerEndpoint,
+                $handshakeBytes,
+                $timeoutMilliseconds,
+                6000
+            )
+            if ($null -ne $handshakeResult.Message) {
+                $msg = $handshakeResult.Message
+                $session.CompleteHandshake($msg.publicKey)
+                $peerEndpoint = $handshakeResult.Endpoint
+                Write-Host "[+] Connected!" -ForegroundColor Green
+                Write-Host "[*] Peer key: $($msg.publicKey.Substring(0, 40))..." -ForegroundColor DarkGray
+                $connected = $true
             }
 
             if (-not $connected) {
-                Write-Host "[!] No response from host after $maxAttempts attempts" -ForegroundColor Red
+                if ($handshakeResult.Diagnostics.Count -gt 0) {
+                    Write-Warning "Rejected handshake response(s): $($handshakeResult.Diagnostics -join '; ')"
+                }
+                Write-Error "Timed out waiting for host acceptance after $([int]($timeoutMilliseconds / 1000)) seconds. Confirm the host is running and has accepted your connection."
                 return
             }
         }
@@ -268,9 +260,12 @@ function Start-CryptoChat {
             try {
                 $data = $udp.Receive([ref]$remoteEp)
                 $text = [System.Text.Encoding]::UTF8.GetString($data)
-                $msg = $text | ConvertFrom-Json -AsHashtable
+                $msg = [MessageProtocol]::Parse($text)
 
-                if ($msg.type -eq "message") {
+                if ($msg.type -eq "unknown") {
+                    Write-Warning "Ignoring invalid chat message: $($msg.error)"
+                }
+                elseif ($msg.type -eq "message") {
                     $decrypted = $session.Decrypt($msg.content)
                     $time = Get-Date -Format "HH:mm:ss"
                     Write-Host "`r[$time] Peer: $decrypted" -ForegroundColor Cyan
@@ -279,12 +274,15 @@ function Start-CryptoChat {
                     Write-Host "`r[!] Peer disconnected: $($msg.reason)" -ForegroundColor Yellow
                     $running = $false
                 }
+                else {
+                    Write-Warning "Ignoring unexpected chat message type '$($msg.type)'."
+                }
             }
             catch [System.Net.Sockets.SocketException] {
                 # Timeout - no message, continue
             }
             catch {
-                # Malformed message, ignore
+                Write-Warning "Could not process incoming chat message: $($_.Exception.Message)"
             }
 
             # Check for user input
